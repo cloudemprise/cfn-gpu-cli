@@ -1,0 +1,167 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Network Security Defense-In-Depth.
+
+  A Restricted Public Subnet Security Group.
+  A Restricted Private Subnet Security Group.
+
+  Public Ingress Rules limited to services on offer only. Public http ingress to
+  facilitate network load balancer health checks.
+
+  Private Ingress Rules restricted to Public Security Group only, i.e. Bastion
+  Host must be used to access private subnets.
+
+  Public egress is completely open while Private egress limited to Public
+  Security Group.
+
+# ------------------------------------------
+
+
+# ==========================================
+Metadata: {}
+# Metadata:
+
+
+# ==========================================
+# Parameters {}
+Parameters:
+
+  # ------------------------------------------
+  # --- The Project Name
+  ProjectName:
+    Description: "Name of this Openvpn project"
+    ConstraintDescription: "Specify name of the project"
+    Type: String
+    Default: "cfn-gpu-rig-cli"
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern:
+      (?!^(\d{1,3}\.){3}\d{1,3}$)(^[a-z0-9]([a-z0-9-]*(\.[a-z0-9])?)*$(?<!\-))
+
+  # ------------------------------------------
+  # --- AWS-Specific Parameter VPC Id
+  VPCID:
+    Description: "VPC to create the SG into"
+    Type: "AWS::EC2::VPC::Id"
+
+  # ------------------------------------------
+  # --- IP CIDR for SSH Bastion Host
+  SshAccessCIDR:
+    Description: IP range for SSH access into Public Instance.
+    Type: String
+    MinLength: "9"
+    MaxLength: "18"
+    Default: 0.0.0.0/0
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: Must be a valid IPv4 CIDR.
+
+# ==========================================
+Conditions: {}
+# Conditions:
+
+
+# ==========================================
+Resources:
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #         SECURITY GROUP DEFINITIONS
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+  # ------------------------------------------
+  # --- Public Subnet Security Group (Ingress)
+  PublicSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    # .............................
+    Properties:
+      GroupDescription: "Public Subnet Security Group"
+      GroupName: !Sub "${ProjectName}-sg-pub-${AWS::Region}"
+      VpcId: !Ref VPCID
+      SecurityGroupIngress:
+        - Description: "SSH External"
+          IpProtocol: "tcp"
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SshAccessCIDR
+        - Description: "OpenVPN TCP"
+          IpProtocol: "tcp"
+          FromPort: 1194
+          ToPort: 1194
+          CidrIp: "0.0.0.0/0"
+        - Description: "OpenVPN UDP"
+          IpProtocol: "udp"
+          FromPort: 1194
+          ToPort: 1194
+          CidrIp: "0.0.0.0/0"
+        - Description: "Ping External"
+          IpProtocol: "icmp"
+          FromPort: 8
+          ToPort: -1
+          CidrIp: "0.0.0.0/0"
+        - Description: "Ping Local"
+          IpProtocol: "icmp"
+          FromPort: 8
+          ToPort: -1
+          CidrIp: "10.0.0.0/16"
+        - Description: "httpd access for nlb health checks"
+          IpProtocol: "tcp"
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "10.0.0.0/16"
+
+
+  # ------------------------------------------
+  # --- Private Subnet Security Group
+  PrivateSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    # .............................
+    Properties:
+      GroupDescription: "Private Subnet Security Group"
+      GroupName: !Sub "${ProjectName}-sg-priv-${AWS::Region}"
+      VpcId: !Ref VPCID
+
+  # ------------------------------------------
+  # --- Private Subnet Ingress SSH local only
+  PrivateInboundRuleSSH:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    # .............................
+    Properties:
+      GroupId:
+        !GetAtt PrivateSecurityGroup.GroupId
+      IpProtocol: "tcp"
+      FromPort: 22
+      ToPort: 22
+      SourceSecurityGroupId:
+        !GetAtt PublicSecurityGroup.GroupId
+
+  # ------------------------------------------
+  # --- Private Subnet Ingress ICMP local only
+  PrivateInboundRuleICMP:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    # .............................
+    Properties:
+      GroupId:
+        !GetAtt PrivateSecurityGroup.GroupId
+      IpProtocol: "icmp"
+      FromPort: 8
+      ToPort: -1
+      SourceSecurityGroupId:
+        !GetAtt PublicSecurityGroup.GroupId
+
+
+# ==========================================
+# Outputs: {}
+Outputs:
+
+  # ------------------------------------------
+  # --- Public Security Group Id
+  PublicSgResourceId:
+    Description: "Public SG Resource ID"
+    Value: !Ref PublicSecurityGroup
+
+  # ------------------------------------------
+  # --- Private Security Group Id
+  PrivateSgResourceId:
+    Description: "Private SG Resource ID"
+    Value: !Ref PrivateSecurityGroup

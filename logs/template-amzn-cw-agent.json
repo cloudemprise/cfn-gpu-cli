@@ -1,0 +1,34 @@
+{
+	"agent": {
+		"run_as_user": "root"
+	},
+	"logs": {
+		"logs_collected": {
+			"files": {
+				"collect_list": [
+					{
+						"file_path": "/var/log/cfn-gpu-rig-cli-server-iptables.log",
+						"log_group_name": "ProjectName/cfn-gpu-rig-cli-server-iptables.log",
+						"log_stream_name": "{instance_id}",
+						"timezone": "UTC",
+						"timestamp_format": "%Y%m%dT%H%M%SZ"
+					},
+					{
+						"file_path": "/var/log/cfn-gpu-rig-cli-server-tcp1194.log",
+						"log_group_name": "ProjectName/cfn-gpu-rig-cli-server-tcp1194.log",
+						"log_stream_name": "{instance_id}",
+						"timezone": "UTC",
+						"timestamp_format": "%Y%m%dT%H%M%SZ"
+					},
+					{
+						"file_path": "/var/log/cfn-gpu-rig-cli-server-udp1194.log",
+						"log_group_name": "ProjectName/cfn-gpu-rig-cli-server-udp1194.log",
+						"log_stream_name": "{instance_id}",
+						"timezone": "UTC",
+						"timestamp_format": "%Y%m%dT%H%M%SZ"
+					}
+				]
+			}
+		}
+	}
+}

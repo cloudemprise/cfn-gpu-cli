@@ -1,0 +1,110 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Add Description Here.
+
+# ------------------------------------------
+
+
+# ==========================================
+Metadata: {}
+# Metadata:
+
+
+# ==========================================
+# Parameters {}
+Parameters:
+
+  # ------------------------------------------
+  # --- The Project Name
+  ProjectName:
+    Description: "Name of this Openvpn project"
+    ConstraintDescription: "Specify name of the project"
+    Type: String
+    Default: "cfn-gpu-rig-cli"
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern:
+      (?!^(\d{1,3}\.){3}\d{1,3}$)(^[a-z0-9]([a-z0-9-]*(\.[a-z0-9])?)*$(?<!\-))
+
+  # ------------------------------------------
+  # --- Pre-Configured Public EC2 instance
+  PublicLtAmiId:
+    Description: "Launch Template Public AMI ID"
+    Type: "AWS::EC2::Image::Id"
+
+  # ------------------------------------------
+  # --- Public Security Group Resource ID
+  PublicSgResourceId:
+    Description: "Public Security Group ID AZ-A"
+    Type: "AWS::EC2::SecurityGroup::Id"
+
+
+# ==========================================
+Conditions: {}
+# Conditions:
+
+
+# ==========================================
+Resources:
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #       LAUNCH TEMPLATE EC2 DEFINITION
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+  # ------------------------------------------
+  # --- Public EC2 Instance
+  PublicEC2LaunchTemplate:
+    Type: "AWS::EC2::LaunchTemplate"
+    # .............................
+    Properties:
+      # .............................
+      LaunchTemplateName: !Sub "${ProjectName}-launch-template"
+      LaunchTemplateData:
+        ImageId: !Ref PublicLtAmiId
+        InstanceType: "t2.micro"
+        KeyName: !Sub "aws.dev.ec2.ssh.key.${AWS::Region}"
+        Monitoring:
+          Enabled: false
+        SecurityGroupIds:
+          - !Ref PublicSgResourceId
+        # .............................
+        IamInstanceProfile:
+          Name: !Sub "${ProjectName}-lt-iam-ec2-${AWS::Region}"
+        # .............................
+        MetadataOptions:
+          HttpEndpoint: "enabled"
+          HttpTokens: "required"
+          HttpPutResponseHopLimit: 1
+        # .............................
+        UserData:
+          Fn::Base64:
+            !Sub |
+              #!/bin/bash -xe
+              # https://github.com/aws/aws-cli/issues/1588 bug with --exclude & set -e below
+              # Health Checks facilitated by httpd Port 80, only works if script gets to this point
+              # in execution, i.e. OpenVPN server is started correctly -> else no health checks.
+              systemctl enable httpd
+              systemctl start httpd
+              # Start CW Agent
+              /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/${ProjectName}-amzn-cw-agent.json -s
+        # .............................
+        TagSpecifications:
+          -
+            ResourceType: "instance"
+            Tags:
+              -
+                Key: "Name"
+                Value: !Sub "${ProjectName}-autoscaled"
+
+
+# ==========================================
+# Outputs: {}
+Outputs:
+
+  # ------------------------------------------
+  # --- Public Instance ID
+  LaunchTemplateId:
+    Description: "Launch Template ID"
+    Value: !Ref PublicEC2LaunchTemplate

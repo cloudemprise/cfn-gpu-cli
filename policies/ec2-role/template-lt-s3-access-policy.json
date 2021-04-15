@@ -1,0 +1,13 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ProjectArtifactsSendRecieveObjects",
+      "Effect":"Allow",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::ProjectBucket/openvpn/server/crt/cfn-gpu-rig-cli-server-crt.tar.gz"
+    }
+  ]
+}
