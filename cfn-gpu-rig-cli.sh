@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # debug options include -v -x
 # cfn-gpu-rig-cli.sh 
-# A hardened, hightly available, multi-protocol, multi-client openvpn 
+# A hardened, hightly available, cloud gaming Windows
 # server cloudformation template composition.
 
 
@@ -140,7 +140,7 @@ HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "$AWS_DOMAIN_N
 
 #-----------------------------
 # Stipulate fully qualified domain name 
-echo "FQDN Openvpn Server ...........................: ${PROJECT_NAME}.${AWS_DOMAIN_NAME}:1194"
+echo "FQDN Gaming Server ............................: ${PROJECT_NAME}.${AWS_DOMAIN_NAME}:3389"
 #.............................
 
 #-----------------------------
@@ -160,49 +160,15 @@ echo "The Console Admin userid ......................: $AWS_USERID_ADMIN"
 # CLI profile userid
 AWS_USERID_CLI=$(aws sts get-caller-identity --query UserId --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
 echo "The Script Caller userid ......................: $AWS_USERID_CLI"
-
 #-----------------------------
 # Script caller IP CIDR for SSH Bastion Host
 SSH_ACCESS_CIDR="$(curl -s https://checkip.amazonaws.com/)/32"
 echo "The Script Caller IP CIDR  ....................: $SSH_ACCESS_CIDR"
-# Grab the latest Amazon_Linux_2 AMI
-AMI_LATEST=$(aws ssm get-parameters --output text                         \
-    --names /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2 \
+# Grab the latest AMI
+AMI_NAME="/aws/service/ami-windows-latest/Windows_Server-2019-English-Full-Base"
+AMI_LATEST=$(aws ssm get-parameters --output text --names "$AMI_NAME" \
     --query 'Parameters[0].[Value]' --profile "$AWS_PROFILE" --region "$AWS_REGION")
-echo "The lastest Amazon Linux 2 AMI ................: $AMI_LATEST"
-#.............................
-
-#-----------------------------
-# Request Cert Auth Private Key Passphrase
-USER_INPUT1="false"
-USER_INPUT2="true"
-# Validate! While user input is different or empty...
-while [[ "$USER_INPUT1" != "$USER_INPUT2" ]] || [[ "$USER_INPUT1" == '' ]] 
-do
-  # -s : silent mode
-  # -r : backslash not an escape character
-  # -e : stdin from terminal
-  # -p : prompt on stderr
-  read -srep "Enter PKI Cert Auth Private Key Passphrase ....: " USER_INPUT1
-  if [[ -z "$USER_INPUT1" ]]; then
-    printf '\n%s\n' "Error. No Input Entered !"
-    continue
-  else
-    read -srep $'\nRepeat PKI Cert Auth Private Key Passphrase ...: ' USER_INPUT2
-    if [[ "$USER_INPUT1" != "$USER_INPUT2" ]]; then
-      printf '\n%s\n' "Error. Passphrase Mismatch !"
-    else
-      printf '\n%s\n' "Passphrase Match....... Continue ..............:"
-      CERT_AUTH_PASS="$USER_INPUT2"
-    fi
-  fi
-done
-# Store Passphrase in SSM Parameter Store
-CERT_AUTH_PASS_NAME="/${PROJECT_NAME}/pki-cert-auth"
-echo "Adding Passphrase to AWS Parameter Store ......: $CERT_AUTH_PASS_NAME"
-aws ssm put-parameter --name "$CERT_AUTH_PASS_NAME" --value "$CERT_AUTH_PASS" \
-        --type SecureString --overwrite --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-        --description "Openvpn PKI Certificate Authority Private Key Passphrase" > /dev/null
+echo "The lastest AMI ...............................: $AMI_LATEST"
 #.............................
 
 #----------------------------------------------
@@ -390,39 +356,6 @@ find -L ./cfn-templates -type f -name "*.yaml" ! -path "*/scratch/*" -print0 |
 #.............................
 
 #-----------------------------
-# Upload easy-rsa pki keygen configs to S3
-S3_LOCATION="s3://$PROJECT_BUCKET/easy-rsa/cfn-gpu-rig-cli-vars"
-if [[ $(tar -zchf - easy-rsa/cfn-gpu-rig-cli-vars/vars* | aws s3 cp - ${S3_LOCATION}/cfn-gpu-rig-cli-easyrsa-vars.tar.gz --profile "$AWS_PROFILE" --region "$AWS_REGION") -ne 0 ]]
-# tar -z : Filter the archive through gzip
-# tar -c : Create a new archive
-# tar -f : Use  archive file
-# tar -h : Follow symlinks
-then
-  echo "easy-rsa Configs Failed to Uploaded to S3 .....: $S3_LOCATION"
-  exit 1
-else
-  echo "easy-rsa Configs Uploaded to S3 Location ......: $S3_LOCATION"
-fi
-#.............................
-
-#-----------------------------
-#Compress & Upload public iptables scripts to S3
-S3_LOCATION="s3://$PROJECT_BUCKET/iptables"
-if [[ $(tar -zchf - iptables/cfn-gpu-rig-cli-ec2-pub-iptables.sh  | aws s3 cp - ${S3_LOCATION}/cfn-gpu-rig-cli-ec2-pub-iptables.sh.tar.gz --profile "$AWS_PROFILE" --region "$AWS_REGION") -ne 0 ]] || \
-   [[ $(tar -zchf - iptables/cfn-gpu-rig-cli-ec2-priv-iptables.sh | aws s3 cp - ${S3_LOCATION}/cfn-gpu-rig-cli-ec2-priv-iptables.sh.tar.gz --profile "$AWS_PROFILE" --region "$AWS_REGION") -ne 0 ]]
-# tar -z : Filter the archive through gzip
-# tar -c : Create a new archive
-# tar -f : Use  archive file
-# tar -h : Follow symlinks 
-then
-  echo "iptables Configs Failed to Uploaded to S3 .....: ${S3_LOCATION}"
-  exit 1
-else
-  echo "iptables Configs Uploaded to S3 Location ......: ${S3_LOCATION}"
-fi
-#.............................
-
-#-----------------------------
 # Create CloudWatch Agent config from template
 find -L ./logs/template*.json -type f -print0 |
 # -L : Follow symbolic links
@@ -430,7 +363,7 @@ find -L ./logs/template*.json -type f -print0 |
   do
     # Copy/Rename template via parameter expansion
     cp "$TEMPLATE" "${TEMPLATE//template/$PROJECT_NAME}"
-    # Update FQDN of vpn record set
+    # Update FQDN of gaming record set
     sed -i "s/ProjectName/$PROJECT_NAME/g" "$_"
     # Create archive of client configs
     tar -rf "$(dirname "$_")/${PROJECT_NAME}-amzn-cw-agent.json.tar" --remove-files -C "$(dirname "$_")" "$(basename "$_")"
@@ -439,7 +372,7 @@ find -L ./logs/template*.json -type f -print0 |
 #.............................
 
 #-----------------------------
-#Compress & Upload CloudWatch Agent config to S3
+# Compress & Upload CloudWatch Agent config to S3
 # Remove hierarchy from archives for more flexible extraction options.
 S3_LOCATION="s3://$PROJECT_BUCKET/logs"
 if [[ $(gzip -c ./logs/*.tar | aws s3 cp - ${S3_LOCATION}/${PROJECT_NAME}-amzn-cw-agent.json.tar.gz --profile "$AWS_PROFILE" --region "$AWS_REGION") -ne 0 ]]
@@ -450,58 +383,6 @@ else
   echo "CW Agent Config Uploaded to S3 Location .......: ${S3_LOCATION}"
   # archive no longer needed
   rm ./logs/${PROJECT_NAME}*.tar
-fi
-#.............................
-
-#-----------------------------
-# Create client ovpn configs from template
-find -L ./openvpn/client/ovpn/template*.ovpn -type f -print0 |
-# -L : Follow symbolic links
-  while IFS= read -r -d '' TEMPLATE
-  do
-    # Copy/Rename template via parameter expansion
-    cp "$TEMPLATE" "${TEMPLATE//template/$PROJECT_NAME}"
-    # Update FQDN of vpn record set
-    sed -i "s/ProjectName/$PROJECT_NAME/g" "$_"
-    # Create archive of client configs
-    tar -rf "$(dirname "$_")/${PROJECT_NAME}-client-1194.ovpn.tar" --remove-files -C "$(dirname "$_")" "$(basename "$_")"
-    echo "Creating .ovpn Client Configuration File ......: $_"
-  done
-#.............................
-
-#-----------------------------
-#Compress & Upload openvpn server configs to S3
-# Remove hierarchy from archives for more flexible extraction options.
-S3_LOCATION="s3://$PROJECT_BUCKET/openvpn"
-if [[ $(tar -zchf - -C ./openvpn/server/conf/ . | aws s3 cp - ${S3_LOCATION}/server/conf/cfn-gpu-rig-cli-server-1194.conf.tar.gz --profile "$AWS_PROFILE" --region "$AWS_REGION") -ne 0 ]] || \
-   [[ $(gzip -c ./openvpn/client/ovpn/*.tar | aws s3 cp - ${S3_LOCATION}/client/ovpn/cfn-gpu-rig-cli-client-1194.ovpn.tar.gz --profile "$AWS_PROFILE" --region "$AWS_REGION") -ne 0 ]]
-# tar -z : Filter the archive through gzip
-# tar -c : Create a new archive
-# tar -f : Use  archive file
-# tar -h : Follow symlinks 
-then
-  echo "Openvpn Configs Failed to Uploaded to S3 ......: ${S3_LOCATION}"
-  exit 1
-else
-  echo "Openvpn Configs Uploaded to S3 Location .......: ${S3_LOCATION}"
-  # archive no longer needed
-  rm ./openvpn/client/ovpn/${PROJECT_NAME}*.tar
-fi
-#.............................
-
-#-----------------------------
-#Compress & Upload sshd hardening script to S3
-S3_LOCATION="s3://$PROJECT_BUCKET/ssh"
-if [[ $(tar -zchf - ssh/cfn-gpu-rig-cli-ec2-harden-ssh.sh | aws s3 cp - ${S3_LOCATION}/cfn-gpu-rig-cli-ec2-harden-ssh.sh.tar.gz --profile "$AWS_PROFILE" --region "$AWS_REGION") -ne 0 ]]
-# tar -z : Filter the archive through gzip
-# tar -c : Create a new archive
-# tar -f : Use  archive file
-# tar -h : Follow symlinks  
-then
-  echo "Harden SSH Configs Failed to Uploaded to S3 ...: ${S3_LOCATION}"
-  exit 1
-else
-  echo "Harden SSH Configs Uploaded to S3 Location ....: ${S3_LOCATION}"
 fi
 #.............................
 
@@ -524,7 +405,7 @@ STACK_ID=$(aws cloudformation create-stack --stack-name "$STACK_NAME" --paramete
                 ParameterKey=DomainHostedZoneId,ParameterValue="$HOSTED_ZONE_ID"        \
                 ParameterKey=SshAccessCIDR,ParameterValue="$SSH_ACCESS_CIDR"            \
                 ParameterKey=CurrentAmi,ParameterValue="$AMI_LATEST"                    \
-                ParameterKey=EmailAddrSNS,ParameterValue="$USER_EMAIL"                  \
+                ParameterKey=GamingEmailAddrSNS,ParameterValue="$USER_EMAIL"                  \
                 --tags Key=Name,Value="$PROJECT_NAME"                                   \
                 --stack-policy-url "$STACK_POLICY_URL" --template-url "$TEMPLATE_URL"   \
                 --profile "$AWS_PROFILE" --region "$AWS_REGION"                         \
@@ -598,10 +479,8 @@ echo "Public Instances have now stopped .............: $INSTANCE_ID_PUB "
 
 #-----------------------------
 # Create IMAGE AMIs
-AMI_IMAGE_PUB=$(aws ec2 create-image --instance-id "$INSTANCE_ID_PUB" --name "${PROJECT_NAME}-openvpn-pub" --description "${PROJECT_NAME}-openvpn-pub-ami" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+AMI_IMAGE_PUB=$(aws ec2 create-image --instance-id "$INSTANCE_ID_PUB" --name "${PROJECT_NAME}-gaming-pub" --description "${PROJECT_NAME}-gaming-pub-ami" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
 echo "Public Subnet EC2 AMI Creation Initiated ......: "
-#AMI_IMAGE_PRIV=$(aws ec2 create-image --instance-id "$INSTANCE_ID_PRIV" --name "${PROJECT_NAME}-openvpn-priv" --description "${PROJECT_NAME}-openvpn-priv-ami" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
-#echo "Private Subnet EC2 AMI Creation Initiated .....: "
 #.............................
 
 #-----------------------------
@@ -618,8 +497,7 @@ echo "Public Subnet EC2 AMI Image is Now Available ..: $AMI_IMAGE_PUB "
 
 #-----------------------------
 # Give AMIs a Name Tag
-aws ec2 create-tags --resources "$AMI_IMAGE_PUB" --tags Key=Name,Value="${PROJECT_NAME}-openvpn-pub" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-#aws ec2 create-tags --resources "$AMI_IMAGE_PRIV" --tags Key=Name,Value="${PROJECT_NAME}-openvpn-priv" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+aws ec2 create-tags --resources "$AMI_IMAGE_PUB" --tags Key=Name,Value="${PROJECT_NAME}-gaming-pub" --profile "$AWS_PROFILE" --region "$AWS_REGION"
 #.............................
 
 #-----------------------------
@@ -644,7 +522,7 @@ aws cloudformation update-stack --stack-name "$STACK_ID" --parameters \
       ParameterKey=DomainName,UsePreviousValue=true                   \
       ParameterKey=DomainHostedZoneId,UsePreviousValue=true           \
       ParameterKey=SshAccessCIDR,UsePreviousValue=true                \
-      ParameterKey=EmailAddrSNS,UsePreviousValue=true                 \
+      ParameterKey=GamingEmailAddrSNS,UsePreviousValue=true                 \
       --stack-policy-url "$STACK_POLICY_URL" --use-previous-template  \
       --profile "$AWS_PROFILE" --region "$AWS_REGION"                 \
       --tags Key=Name,Value="$PROJECT_NAME" > /dev/null    
@@ -691,7 +569,7 @@ $(( TIME_DIFF_STACK / 3600 ))h $(( (TIME_DIFF_STACK / 60) % 60 ))m $(( TIME_DIFF
 INSTANCE_ID_PUB=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
     --profile "$AWS_PROFILE" --region "$AWS_REGION"                                         \
     --query "Stacks[].Outputs[?OutputKey == 'InstanceIdPublic'].OutputValue")
-echo "Openvpn Server EC2 Instance ID ................: $INSTANCE_ID_PRIV"
+echo "Gaming Server EC2 Instance ID .........................: $INSTANCE_ID_PRIV"
 #.............................
 
 #-----------------------------

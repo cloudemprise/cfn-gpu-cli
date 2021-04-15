@@ -2,7 +2,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Creates an aliased A Record Set for the Network Loadbalancer associated with
-  Openvpn service.
+  Gaming service.
   Prerequisite: A registered Domain Name and a previously defined Hosted Zone.
 
 # ------------------------------------------
@@ -20,7 +20,7 @@ Parameters:
   # ------------------------------------------
   # --- The Project Name
   ProjectName:
-    Description: "Name of this Openvpn project"
+    Description: "Name of this project"
     ConstraintDescription: "Specify name of the project"
     Type: String
     Default: "cfn-gpu-rig-cli"
@@ -31,22 +31,22 @@ Parameters:
 
   # ------------------------------------------
   # --- Route53 Particulars
-  OpenvpnDomainName:
-    Description: "OpenVPN Domain Name"
+  GamingDomainName:
+    Description: "Gaming Domain Name"
     Type: String
     Default: "cloudemprise.net"
     AllowedPattern:
       ^(([a-zA-Z]{1})|([a-zA-Z]{1}[a-zA-Z]{1})|([a-zA-Z]{1}[0-9]{1})|([0-9]{1}[a-zA-Z]{1})|([a-zA-Z0-9][a-zA-Z0-9-_]{1,61}[a-zA-Z0-9]))\.([a-zA-Z]{2,6}|[a-zA-Z0-9-]{2,30}\.[a-zA-Z]{2,3})$
   # .............................
-  OpenvpnR53HostedZoneId:
+  GamingR53HostedZoneId:
     Description: "An Amazon Route 53 hosted zone ID"
     Type: AWS::Route53::HostedZone::Id
   # .............................
-  OpenvpnLoadBalancerDNS:
-    Description: "OpenVPN Network Loadbalancer DNS"
+  GamingLoadBalancerDNS:
+    Description: "Gaming Network Loadbalancer DNS"
     Type: String
   # .............................
-  OpenvpnLoadBalancerZoneId:
+  GamingLoadBalancerZoneId:
     Description: "Network Loadbalancer Hosted Zone ID"
     Type: String
 
@@ -66,17 +66,17 @@ Resources:
 
   # ------------------------------------------
   # --- Record Set Definition
-  OpenvpnR53RecordSet:
+  GamingR53RecordSet:
     Type: "AWS::Route53::RecordSet"
     # .............................
     Properties:
-      Name: !Sub "${ProjectName}.${OpenvpnDomainName}"
-      Comment: "Openvpn Route53 Record Set"
+      Name: !Sub "${ProjectName}.${GamingDomainName}"
+      Comment: "Gaming Route53 Record Set"
       Type: "A"
-      HostedZoneId: !Ref OpenvpnR53HostedZoneId
+      HostedZoneId: !Ref GamingR53HostedZoneId
       AliasTarget:
-        HostedZoneId: !Ref OpenvpnLoadBalancerZoneId
-        DNSName: !Ref OpenvpnLoadBalancerDNS
+        HostedZoneId: !Ref GamingLoadBalancerZoneId
+        DNSName: !Ref GamingLoadBalancerDNS
         EvaluateTargetHealth: true
 
 

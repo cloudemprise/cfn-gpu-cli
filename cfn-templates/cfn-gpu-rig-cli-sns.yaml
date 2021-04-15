@@ -18,7 +18,7 @@ Parameters:
   # ------------------------------------------
   # --- The Project Name
   ProjectName:
-    Description: "Name of this Openvpn project"
+    Description: "Name of this project"
     ConstraintDescription: "Specify name of the project"
     Type: String
     Default: "cfn-gpu-rig-cli"
@@ -29,8 +29,8 @@ Parameters:
 
   # ------------------------------------------
   # --- Email Endpoint Notifications
-  EmailAddrSNS:
-    Description: "Openvpn SNS Email Endpoint"
+  GamingEmailAddrSNS:
+    Description: "Gaming SNS Email Endpoint"
     Type: String
 
 
@@ -49,27 +49,27 @@ Resources:
 
   # ------------------------------------------
   # --- SNS Topic Definition
-  OpenvpnTopicSNS:
+  GamingTopicSNS:
     Type: "AWS::SNS::Topic"
     # .............................
     Properties:
-      DisplayName: "OpenvpnNotice"
+      DisplayName: "GamingNotice"
       TopicName: !Sub "${ProjectName}-activity-notice-${AWS::Region}"
       KmsMasterKeyId: "alias/aws/sns"
       # .............................
       Tags:
         -
           Key: "Name"
-          Value: "openvpn-activity-sns"
+          Value: "gaming-activity-sns"
 
   # ------------------------------------------
   # --- SNS Subscription Definition
-  OpenvpnSubscriptionSNS:
+  GamingSubscriptionSNS:
     Type: "AWS::SNS::Subscription"
     # .............................
     Properties:
-      TopicArn: !Ref OpenvpnTopicSNS
-      Endpoint: !Ref EmailAddrSNS
+      TopicArn: !Ref GamingTopicSNS
+      Endpoint: !Ref GamingEmailAddrSNS
       Protocol: "email"
       Region: !Ref AWS::Region
 
@@ -80,6 +80,6 @@ Outputs:
 
   # ------------------------------------------
   # --- SNS Topic ARN
-  OpenvpnSNSTopicARN:
-    Description: "Openvpn SNS Activity Topic ARN"
-    Value: !Ref OpenvpnTopicSNS
+  GamingSNSTopicARN:
+    Description: "Gaming SNS Activity Topic ARN"
+    Value: !Ref GamingTopicSNS

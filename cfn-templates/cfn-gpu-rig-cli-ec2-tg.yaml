@@ -1,7 +1,7 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  A Target Group for the Network Loadbalancer associated with the Openvpn
+  A Target Group for the Network Loadbalancer associated with the Gaming
   service. Health Checks come from a webserver running on the same EC2 instance.
 
 # ------------------------------------------
@@ -19,7 +19,7 @@ Parameters:
   # ------------------------------------------
   # --- The Project Name
   ProjectName:
-    Description: "Name of this Openvpn project"
+    Description: "Name of this project"
     ConstraintDescription: "Specify name of the project"
     Type: String
     Default: "cfn-gpu-rig-cli"
@@ -50,7 +50,7 @@ Resources:
 
   # ------------------------------------------
   # --- Target Group Definition
-  OpenvpnTargetGroup:
+  GamingTargetGroup:
     Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
     # .............................
     Properties:
@@ -78,7 +78,7 @@ Resources:
       Tags:
         -
           Key: "Name"
-          Value: "OpenvpnTargetGroup"
+          Value: "GamingTargetGroup"
 
 
 # ==========================================
@@ -87,12 +87,12 @@ Outputs:
 
   # ------------------------------------------
   # --- EC2 Target Group ARN
-  OpenvpnTargetGroupARN:
+  GamingTargetGroupARN:
     Description: "Network Loadbalancer Target Group ARN"
-    Value: !Ref OpenvpnTargetGroup
+    Value: !Ref GamingTargetGroup
 
   # ------------------------------------------
   # --- EC2 Target Group Name
-  OpenvpnTargetName:
+  GamingTargetName:
     Description: "Network Loadbalancer Target Group Name"
-    Value: !GetAtt OpenvpnTargetGroup.TargetGroupName
+    Value: !GetAtt GamingTargetGroup.TargetGroupName

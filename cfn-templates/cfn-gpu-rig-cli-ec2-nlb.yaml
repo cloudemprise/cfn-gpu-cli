@@ -1,7 +1,7 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  A Network Loadbalancer and its associated Listener for OpenVPN Implementation.
+  A Network Loadbalancer and its associated Listener for Gaming Implementation.
   Servicing public subnets in multiple availablity zones.
 
 # ------------------------------------------
@@ -19,7 +19,7 @@ Parameters:
   # ------------------------------------------
   # --- The Project Name
   ProjectName:
-    Description: "Name of this Openvpn project"
+    Description: "Name of this project"
     ConstraintDescription: "Specify name of the project"
     Type: String
     Default: "cfn-gpu-rig-cli"
@@ -62,7 +62,7 @@ Resources:
 
   # ------------------------------------------
   # --- Load Balancer Definition
-  OpenvpnLoadBalancer:
+  GamingLoadBalancer:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     # .............................
     Properties:
@@ -72,7 +72,7 @@ Resources:
       Tags:
         -
           Key: "Name"
-          Value: "OpenvpnLoadBalancer"
+          Value: "GamingLoadBalancer"
       # .............................
       Type: "network"
       Scheme: "internet-facing"
@@ -96,14 +96,14 @@ Resources:
 
   # ------------------------------------------
   # --- Load Balancer Listener Definition
-  OpenvpnLoadBalancerListener:
+  GamingLoadBalancerListener:
     Type: "AWS::ElasticLoadBalancingV2::Listener"
     # .............................
     Properties:
       # .............................
       Protocol: "TCP_UDP"
       Port: 1194
-      LoadBalancerArn: !Ref OpenvpnLoadBalancer
+      LoadBalancerArn: !Ref GamingLoadBalancer
       # .............................
       DefaultActions:
         -
@@ -117,18 +117,18 @@ Outputs:
 
   # ------------------------------------------
   # --- EC2 Load Balancer ARN
-  OpenvpnLoadBalancerARN:
+  GamingLoadBalancerARN:
     Description: Network Loadbalancer ARN
-    Value: !Ref OpenvpnLoadBalancer
+    Value: !Ref GamingLoadBalancer
 
   # ------------------------------------------
   # --- EC2 Load Balancer DNS
-  OpenvpnLoadBalancerDNS:
+  GamingLoadBalancerDNS:
     Description: Network Loadbalancer DNS
-    Value: !GetAtt OpenvpnLoadBalancer.DNSName
+    Value: !GetAtt GamingLoadBalancer.DNSName
 
   # ------------------------------------------
   # --- EC2 Load Balancer Hosted Zone ID
-  OpenvpnLoadBalancerZoneId:
+  GamingLoadBalancerZoneId:
     Description: Network Loadbalancer Hosted Zone ID
-    Value: !GetAtt OpenvpnLoadBalancer.CanonicalHostedZoneID
+    Value: !GetAtt GamingLoadBalancer.CanonicalHostedZoneID

@@ -2,7 +2,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Two Cloudwatch metrics from the AWS/AutoScaling Namespace are used to create
-  Alarms for OpenVPN Implementation. These monitor the number of instances in
+  Alarms for Gaming Implementation. These monitor the number of instances in
   each out-of-service and in-service state.
 
 # ------------------------------------------
@@ -20,7 +20,7 @@ Parameters:
   # ------------------------------------------
   # --- The Project Name
   ProjectName:
-    Description: "Name of this Openvpn project"
+    Description: "Name of this project"
     ConstraintDescription: "Specify name of the project"
     Type: String
     Default: "cfn-gpu-rig-cli"
@@ -31,8 +31,8 @@ Parameters:
 
   # ------------------------------------------
   # --- SNS Topic ARN
-  OpenvpnSNSTopicARN:
-    Description: "Openvpn SNS Activity Topic ARN"
+  GamingSNSTopicARN:
+    Description: "Gaming SNS Activity Topic ARN"
     Type: String
 
 
@@ -51,17 +51,17 @@ Resources:
 
   # ------------------------------------------
   # --- CloudWatch Alarm Out of Service Definition
-  OpenvpnOutOfServiceAlarm:
+  GamingOutOfServiceAlarm:
     Type: "AWS::CloudWatch::Alarm"
     # .............................
     Properties:
       # .............................
       AlarmName: !Sub "${ProjectName}-OutOfService"
-      AlarmDescription: "Openvpn Cloudwatch Alarm: Out of Service"
+      AlarmDescription: "Gaming Cloudwatch Alarm: Out of Service"
       # .............................
       ActionsEnabled: true
       AlarmActions:
-        - !Ref OpenvpnSNSTopicARN
+        - !Ref GamingSNSTopicARN
       # .............................
       Namespace: "AWS/AutoScaling"
       MetricName: "GroupInServiceInstances"
@@ -81,17 +81,17 @@ Resources:
 
   # ------------------------------------------
   # --- CloudWatch Alarm In Service Definition
-  OpenvpnInServiceAlarm:
+  GamingInServiceAlarm:
     Type: "AWS::CloudWatch::Alarm"
     # .............................
     Properties:
       # .............................
       AlarmName: !Sub "${ProjectName}-InService"
-      AlarmDescription: "Openvpn Cloudwatch Alarm: In Service"
+      AlarmDescription: "Gaming Cloudwatch Alarm: In Service"
       # .............................
       ActionsEnabled: true
       AlarmActions:
-        - !Ref OpenvpnSNSTopicARN
+        - !Ref GamingSNSTopicARN
       # .............................
       Namespace: "AWS/AutoScaling"
       MetricName: "GroupInServiceInstances"
@@ -118,12 +118,12 @@ Outputs: {}
 # ------------------------------------------
 #  LoadBalanerValue:
 #    Description: Launch Template ID
-#    Value: !Select [5, !Split [":", !Ref OpenvpnLoadBalancerARN]]
-#    Value: !Select [3, !Split ["/", !Select [5, !Split [":", !Ref OpenvpnLoadBalancerARN]]]]
-#    Value: !Select [3, !Split ["/", !Ref OpenvpnLoadBalancerARN]]
-#    Value: !Join ["/", ["net", !Ref OpenvpnLoadBalancerName, !Select [3, !Split ["/", !Ref OpenvpnLoadBalancerARN]]]]
+#    Value: !Select [5, !Split [":", !Ref GamingLoadBalancerARN]]
+#    Value: !Select [3, !Split ["/", !Select [5, !Split [":", !Ref GamingLoadBalancerARN]]]]
+#    Value: !Select [3, !Split ["/", !Ref GamingLoadBalancerARN]]
+#    Value: !Join ["/", ["net", !Ref GamingLoadBalancerName, !Select [3, !Split ["/", !Ref GamingLoadBalancerARN]]]]
 # ------------------------------------------
 #  TargetGroupValue:
 #    Description: Launch Template ID
-#    Value: !Select [5, !Split [":", !Ref OpenvpnTargetGroupARN]]
+#    Value: !Select [5, !Split [":", !Ref GamingTargetGroupARN]]
 # ------------------------------------------

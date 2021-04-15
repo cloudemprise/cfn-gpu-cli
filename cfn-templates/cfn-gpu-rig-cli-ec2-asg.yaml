@@ -1,7 +1,7 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  An EC2 Auto Scaling Group with static scaling policy for a standalone OpenVPN
+  An EC2 Auto Scaling Group with static scaling policy for a standalone Gaming
   Implementation. Requires a Launch Template, a Target Group and a SNS
   notification topic. Two metrics are collected, i.e. GroupInServiceInstances
   and GroupTotalInstances. Notifies on all state changes.
@@ -21,7 +21,7 @@ Parameters:
   # ------------------------------------------
   # --- The Project Name
   ProjectName:
-    Description: "Name of this Openvpn project"
+    Description: "Name of this project"
     ConstraintDescription: "Specify name of the project"
     Type: String
     Default: "cfn-gpu-rig-cli"
@@ -49,8 +49,8 @@ Parameters:
     Description: "Network Loadbalancer Target Group ARN"
     Type: String
   # ------------------------------------------
-  OpenvpnSNSTopicARN:
-    Description: "Openvpn SNS Activity Topic ARN"
+  GamingSNSTopicARN:
+    Description: "Gaming SNS Activity Topic ARN"
     Type: String
 
 
@@ -69,7 +69,7 @@ Resources:
 
   # ------------------------------------------
   # --- Auto Scale Group
-  OpenvpnEC2AutoScaleGrp:
+  GamingEC2AutoScaleGrp:
     Type: "AWS::AutoScaling::AutoScalingGroup"
     # .............................
     Properties:
@@ -113,7 +113,7 @@ Resources:
             - autoscaling:EC2_INSTANCE_TERMINATE
             - autoscaling:EC2_INSTANCE_TERMINATE_ERROR
             - autoscaling:TEST_NOTIFICATION
-          TopicARN: !Ref OpenvpnSNSTopicARN
+          TopicARN: !Ref GamingSNSTopicARN
 
 
 # ==========================================

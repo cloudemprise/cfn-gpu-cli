@@ -18,7 +18,7 @@ Parameters:
   # ------------------------------------------
   # --- The Project Name
   ProjectName:
-    Description: "Name of this Openvpn project"
+    Description: "Name of this project"
     ConstraintDescription: "Specify name of the project"
     Type: String
     Default: "cfn-gpu-rig-cli"
@@ -79,8 +79,8 @@ Parameters:
 
   # ------------------------------------------
   # --- SNS Email Notifications
-  EmailAddrSNS:
-    Description: "Openvpn SNS Email Endpoint"
+  GamingEmailAddrSNS:
+    Description: "SNS Email Endpoint"
     ConstraintDescription: "Must be a valid email address"
     Type: String
     Default: "dh.info@posteo.net"
@@ -242,7 +242,7 @@ Resources:
 
   # ------------------------------------------
   # --- SNS Topic for Alarms
-  OpenvpnSNSTopicDef:
+  GamingSNSTopicDef:
     Type: "AWS::CloudFormation::Stack"
     Condition: "CreateResourcesStage3"
     # .............................
@@ -252,8 +252,8 @@ Resources:
       Parameters:
         ProjectName:
           !Ref ProjectName
-        EmailAddrSNS:
-          !Ref EmailAddrSNS
+        GamingEmailAddrSNS:
+          !Ref GamingEmailAddrSNS
       TimeoutInMinutes: 5
 
 
@@ -276,9 +276,9 @@ Resources:
         LaunchTemplateIdASG:
           !GetAtt LaunchTemplateDef.Outputs.LaunchTemplateId
         TargetGroupArnNLB:
-          !GetAtt TargetGroupDef.Outputs.OpenvpnTargetGroupARN
-        OpenvpnSNSTopicARN:
-          !GetAtt OpenvpnSNSTopicDef.Outputs.OpenvpnSNSTopicARN
+          !GetAtt TargetGroupDef.Outputs.GamingTargetGroupARN
+        GamingSNSTopicARN:
+          !GetAtt GamingSNSTopicDef.Outputs.GamingSNSTopicARN
       TimeoutInMinutes: 5
 
 
@@ -300,13 +300,13 @@ Resources:
         PublicSubnetIdB:
           !GetAtt VPCDef.Outputs.PublicSubnetIdB
         TargetGroupArnNLB:
-          !GetAtt TargetGroupDef.Outputs.OpenvpnTargetGroupARN
+          !GetAtt TargetGroupDef.Outputs.GamingTargetGroupARN
       TimeoutInMinutes: 5
 
 
   # ------------------------------------------
   # --- CloudWatch Alarm
-  OpenvpnCloudWatchAlarmDef:
+  GamingCloudWatchAlarmDef:
     Type: "AWS::CloudFormation::Stack"
     Condition: "CreateResourcesStage3"
     DependsOn:
@@ -319,14 +319,14 @@ Resources:
       Parameters:
         ProjectName:
           !Ref ProjectName
-        OpenvpnSNSTopicARN:
-          !GetAtt OpenvpnSNSTopicDef.Outputs.OpenvpnSNSTopicARN
+        GamingSNSTopicARN:
+          !GetAtt GamingSNSTopicDef.Outputs.GamingSNSTopicARN
       TimeoutInMinutes: 5
 
 
   # ------------------------------------------
   # --- Route53 Record Set
-  OpenvpnR53RecordSetDef:
+  GamingR53RecordSetDef:
     Type: "AWS::CloudFormation::Stack"
     Condition: "CreateResourcesStage3"
     # .............................
@@ -336,14 +336,14 @@ Resources:
       Parameters:
         ProjectName:
           !Ref ProjectName
-        OpenvpnDomainName:
+        GamingDomainName:
           !Ref DomainName
-        OpenvpnR53HostedZoneId:
+        GamingR53HostedZoneId:
           !Ref DomainHostedZoneId
-        OpenvpnLoadBalancerDNS:
-          !GetAtt NetworkLoadBalancerDef.Outputs.OpenvpnLoadBalancerDNS
-        OpenvpnLoadBalancerZoneId:
-          !GetAtt NetworkLoadBalancerDef.Outputs.OpenvpnLoadBalancerZoneId
+        GamingLoadBalancerDNS:
+          !GetAtt NetworkLoadBalancerDef.Outputs.GamingLoadBalancerDNS
+        GamingLoadBalancerZoneId:
+          !GetAtt NetworkLoadBalancerDef.Outputs.GamingLoadBalancerZoneId
       TimeoutInMinutes: 5
 
 
