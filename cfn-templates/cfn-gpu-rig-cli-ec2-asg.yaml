@@ -89,13 +89,14 @@ Resources:
         - !Ref PublicSubnetIdA
         - !Ref PublicSubnetIdB
       # .............................
-      Cooldown: "600"
+      Cooldown: "300"
       DesiredCapacity: "1"
       MinSize: "1"
       MaxSize: "1"
       # .............................
-      HealthCheckType: "ELB"
-      HealthCheckGracePeriod: 600
+      #HealthCheckType: "ELB"
+      HealthCheckType: "EC2"
+      HealthCheckGracePeriod: 300
       # .............................
       TargetGroupARNs:
         - !Ref TargetGroupArnNLB

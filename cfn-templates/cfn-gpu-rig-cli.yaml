@@ -38,6 +38,8 @@ Parameters:
       - "stage1"
       - "stage2"
       - "stage3"
+      - "stage4"
+
 
   # ------------------------------------------
   # --- The Hosted Zone Domain Name
@@ -94,6 +96,7 @@ Conditions:
   CreateResourcesStage1: !Equals [ !Ref BuildStep, "stage1"]
   CreateResourcesStage2: !Equals [!Ref BuildStep, "stage2"]
   CreateResourcesStage3: !Equals [!Ref BuildStep, "stage3"]
+  CreateResourcesStage4: !Equals [!Ref BuildStep, "stage4"]
 
 
 # ==========================================
@@ -286,7 +289,7 @@ Resources:
   # --- EC2 Network Load Balancer
   NetworkLoadBalancerDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage3"
+    Condition: "CreateResourcesStage4"
     DependsOn: "AutoScaleGroupDef"
     # .............................
     Properties:
@@ -308,10 +311,10 @@ Resources:
   # --- CloudWatch Alarm
   GamingCloudWatchAlarmDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage3"
+    Condition: "CreateResourcesStage4"
     DependsOn:
-      - "NetworkLoadBalancerDef"
       - "TargetGroupDef"
+      - "NetworkLoadBalancerDef"
     # .............................
     Properties:
       TemplateURL:
@@ -328,7 +331,7 @@ Resources:
   # --- Route53 Record Set
   GamingR53RecordSetDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage3"
+    Condition: "CreateResourcesStage4"
     # .............................
     Properties:
       TemplateURL:
