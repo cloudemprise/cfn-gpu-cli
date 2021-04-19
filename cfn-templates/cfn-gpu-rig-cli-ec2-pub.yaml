@@ -18,14 +18,14 @@ Parameters:
   # ------------------------------------------
   # --- The Project Name
   ProjectName:
-    Description: "Name of this project"
-    ConstraintDescription: "Specify name of the project"
+    Description: "The Name given to this Project."
+    ConstraintDescription: "Name must satisfy S3 constraints."
     Type: String
     Default: "cfn-gpu-rig-cli"
     MinLength: 3
     MaxLength: 63
     AllowedPattern:
-      (?!^(\d{1,3}\.){3}\d{1,3}$)(^[a-z0-9]([a-z0-9-]*(\.[a-z0-9])?)*$(?<!\-))
+      ^[a-zA-Z0-9.\-_]{1,255}$
 
   # ------------------------------------------
   # --- AMI for EC2 instance
@@ -82,7 +82,8 @@ Resources:
           DeviceName: "/dev/sda1"
           Ebs:
             Encrypted: false
-            VolumeSize: 512
+            # VolumeSize: 512
+            VolumeSize: 50
             VolumeType: "gp2"
             DeleteOnTermination: true
       # .............................
@@ -96,7 +97,8 @@ Resources:
       SourceDestCheck: true
       Tenancy: "default"
       # .............................
-      IamInstanceProfile: !Sub "${ProjectName}-pub-iam-ec2-${AWS::Region}"
+      #IamInstanceProfile: !Sub "${ProjectName}-pub-iam-ec2-${AWS::Region}"
+      IamInstanceProfile: "role.ec2-usr-datascience.eu-central-1"
       ImageId: !Ref PublicAmiId
       InstanceType: "t2.micro"
       #InstanceType: "g4dn.xlarge"
@@ -116,9 +118,11 @@ Resources:
         Fn::Base64:
           !Sub |
             <powershell>
-
+                Copy-S3Object -BucketName depot.ce-windows -KeyPrefix shared -LocalFolder "C:\Users\Administrator\Downloads" -Region eu-central-1
+                Start-Process msiexec.exe -Wait -ArgumentList '/I C:\Users\Administrator\Downloads\awscli\AWSCLIV2.msi /passive'
+                Start-Process msiexec.exe -Wait -ArgumentList '/I "C:\Users\Administrator\Downloads\firefox\install\Firefox Setup 78.9.0esr.msi" /passive'
             </powershell>
-    # .............................
+      # .............................
 
 
 
@@ -129,5 +133,5 @@ Outputs:
   # ------------------------------------------
   # --- Public Instance ID
   PubEC2InstanceId:
-    Description: "Public Instance ID"
+    Description: "Public Build Instance ID"
     Value: !Ref PublicEC2Instance

@@ -24,14 +24,14 @@ Parameters:
   # ------------------------------------------
   # --- The Project Name
   ProjectName:
-    Description: "Name of this project"
-    ConstraintDescription: "Specify name of the project"
+    Description: "The Name given to this Project."
+    ConstraintDescription: "Name must satisfy S3 constraints."
     Type: String
     Default: "cfn-gpu-rig-cli"
     MinLength: 3
     MaxLength: 63
     AllowedPattern:
-      (?!^(\d{1,3}\.){3}\d{1,3}$)(^[a-z0-9]([a-z0-9-]*(\.[a-z0-9])?)*$(?<!\-))
+      ^[a-zA-Z0-9.\-_]{1,255}$
 
   # ------------------------------------------
   # --- AWS-Specific Parameter Types
@@ -198,22 +198,8 @@ Resources:
       RuleAction: "allow"
       CidrBlock: "0.0.0.0/0"
       PortRange:
-        From: 1194
-        To: 1194
-  # ------------------------------------------
-  PublicNAclIngress61:
-    Type: "AWS::EC2::NetworkAclEntry"
-    # .............................
-    Properties:
-      NetworkAclId: !Ref PublicNAcl
-      Egress: false
-      RuleNumber: 61
-      Protocol: 17
-      RuleAction: "allow"
-      CidrBlock: "0.0.0.0/0"
-      PortRange:
-        From: 1194
-        To: 1194
+        From: 3389
+        To: 3389
   # ------------------------------------------
   PublicNAclIngress62:
     Type: "AWS::EC2::NetworkAclEntry"
@@ -438,90 +424,6 @@ Resources:
       Icmp:
         Type: 0
         Code: -1
-  # ------------------------------------------
-  PublicNAclEgress80:
-    Type: "AWS::EC2::NetworkAclEntry"
-    # .............................
-    Properties:
-      NetworkAclId: !Ref PublicNAcl
-      Egress: true
-      RuleNumber: 80
-      Protocol: 6
-      RuleAction: "allow"
-      CidrBlock: "0.0.0.0/0"
-      PortRange:
-        From: 5228
-        To: 5228
-  # ------------------------------------------
-  PublicNAclEgress81:
-    Type: "AWS::EC2::NetworkAclEntry"
-    # .............................
-    Properties:
-      NetworkAclId: !Ref PublicNAcl
-      Egress: true
-      RuleNumber: 81
-      Protocol: 6
-      RuleAction: "allow"
-      CidrBlock: "0.0.0.0/0"
-      PortRange:
-        From: 5094
-        To: 5094
-  # ------------------------------------------
-  PublicNAclEgress82:
-    Type: "AWS::EC2::NetworkAclEntry"
-    # .............................
-    Properties:
-      NetworkAclId: !Ref PublicNAcl
-      Egress: true
-      RuleNumber: 82
-      Protocol: 6
-      RuleAction: "allow"
-      CidrBlock: "0.0.0.0/0"
-      PortRange:
-        From: 5222
-        To: 5222
-  # ------------------------------------------
-  PublicNAclEgress83:
-    Type: "AWS::EC2::NetworkAclEntry"
-    # .............................
-    Properties:
-      NetworkAclId: !Ref PublicNAcl
-      Egress: true
-      RuleNumber: 83
-      Protocol: 6
-      RuleAction: "allow"
-      CidrBlock: "0.0.0.0/0"
-      PortRange:
-        From: 993
-        To: 993
-  # ------------------------------------------
-  PublicNAclEgress84:
-    Type: "AWS::EC2::NetworkAclEntry"
-    # .............................
-    Properties:
-      NetworkAclId: !Ref PublicNAcl
-      Egress: true
-      RuleNumber: 84
-      Protocol: 6
-      RuleAction: "allow"
-      CidrBlock: "0.0.0.0/0"
-      PortRange:
-        From: 465
-        To: 465
-  # ------------------------------------------
-  PublicNAclEgress85:
-    Type: "AWS::EC2::NetworkAclEntry"
-    # .............................
-    Properties:
-      NetworkAclId: !Ref PublicNAcl
-      Egress: true
-      RuleNumber: 85
-      Protocol: 6
-      RuleAction: "allow"
-      CidrBlock: "0.0.0.0/0"
-      PortRange:
-        From: 587
-        To: 587
   # ------------------------------------------
   PublicNAclEgress100:
     Type: "AWS::EC2::NetworkAclEntry"

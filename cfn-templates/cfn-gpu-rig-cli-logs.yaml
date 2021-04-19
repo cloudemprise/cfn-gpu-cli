@@ -1,0 +1,612 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Create Cloudtrail Trail
+
+# ------------------------------------------
+
+
+# ==========================================
+Metadata: {}
+# Metadata:
+
+
+# ==========================================
+# Parameters {}
+Parameters:
+
+  # ------------------------------------------
+  # --- The Project Name
+  ProjectName:
+    Description: "The Name given to this Project."
+    ConstraintDescription: "Name must satisfy S3 constraints."
+    Type: String
+    Default: "cfn-gpu-rig-cli"
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern:
+      ^[a-zA-Z0-9.\-_]{1,255}$
+
+  # ------------------------------------------
+  # --- AWS-Specific Parameter VPC Id
+  VPCID:
+    Description: "VPC to create the SG into"
+    Type: "AWS::EC2::VPC::Id"
+
+# ==========================================
+Conditions: {}
+# Conditions:
+
+
+# ==========================================
+Resources:
+
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #         S3 BUCKET DEFINITIONS
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  # ------------------------------------------
+  # --- CloudTrail Logs Bucket Definition
+  GamingBucketLogs:
+    Type: "AWS::S3::Bucket"
+    # .............................
+    Properties:
+      # .............................
+      Tags:
+        -
+          Key: "Project"
+          Value: !Sub "${ProjectName}"
+      # .............................
+      BucketName: !Sub "logs.${ProjectName}"
+      # .............................
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration: 
+        - 
+          ServerSideEncryptionByDefault: 
+            SSEAlgorithm: "AES256"
+
+  # ------------------------------------------
+  # --- CloudTrail Logs Bucket Policy
+  GamingBucketLogsPolicy:
+    # .............................
+    Type: "AWS::S3::BucketPolicy"
+    # .............................
+    Properties:
+      # .............................
+      Bucket: !Ref GamingBucketLogs
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Id: "GamingLogsBucketAccess"
+        Statement:
+          # ---
+          - 
+            Sid: "AWSCloudTrailAclCheck"
+            Effect: "Allow"
+            Principal:
+                Service: "cloudtrail.amazonaws.com"
+            Action: "s3:GetBucketAcl"
+            Resource: !Sub "arn:aws:s3:::${GamingBucketLogs}"
+          # ---
+          - 
+            Sid: "AWSCloudTrailWrite"
+            Effect: "Allow"
+            Principal:
+                Service: "cloudtrail.amazonaws.com"
+            Action: "s3:PutObject"
+            Resource: !Sub "arn:aws:s3:::${GamingBucketLogs}/AWSLogs/${AWS::AccountId}/*"
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
+
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #         CLOUDWATCH LOGS DEFINITIONS
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  # ------------------------------------------
+  # --- Trail Definition
+  GamingCWatchLogsGrp:
+    Type: "AWS::Logs::LogGroup"
+    # .............................
+    Properties:
+      # .............................
+      LogGroupName: !Sub "logs.${ProjectName}"
+
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #         VPC FLOWLOGS DEFINITIONS
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  # ------------------------------------------
+  # --- Flowlogs Definition
+  GamingVpcFlowLogs:
+    Type: "AWS::EC2::FlowLog"
+    # .............................
+    Properties:
+      # .............................
+      Tags:
+        -
+          Key: "Name"
+          Value: !Sub "${ProjectName}-flowlogs"
+        -
+          Key: "Project"
+          Value: !Sub "${ProjectName}"
+      # .............................
+      DeliverLogsPermissionArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/flowlogsRole"
+      LogGroupName: "/cfn-gpu-rig-cli-flogs-manual"
+      LogDestinationType: "cloud-watch-logs"
+      #LogFormat: "${version} ${account-id} ${interface-id} ${srcaddr} ${dstaddr} ${srcport} ${dstport} ${protocol} ${packets} ${bytes} ${start} ${end} ${action} ${log-status}"
+      MaxAggregationInterval: 600
+      ResourceId: !Ref VPCID
+      ResourceType: "VPC"
+      TrafficType: "ALL"
+      # .............................
+
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #         IAM POLICIES & ROLES DEFINITIONS
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  # ------------------------------------------
+  # --- IAM Role Definition
+  GamingCWatchLogsIamRole:
+    Type: "AWS::IAM::Role"
+    # .............................
+    Properties:
+      # .............................
+      RoleName: !Sub "role.${ProjectName}.cwatch.${AWS::Region}"
+      Path: "/service-role/"
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"cloudtrail.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+      ManagedPolicyArns: 
+        - !Ref CWatchManagedPolicy
+
+  # ------------------------------------------
+  # --- IAM Policy Definition
+  CWatchManagedPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    # .............................
+    Properties:
+      # .............................
+      ManagedPolicyName: !Sub "service.${ProjectName}.cwatch.${AWS::Region}"
+      Path: "/service-role/"
+      # .............................
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Id: !Sub "service.${ProjectName}.cwatch"
+        Statement:
+          # ---
+          - Sid: "AWSCloudTrailCreateLogStream"
+            Effect: "Allow"
+            Action:
+              - logs:CreateLogStream
+            Resource:
+              - !GetAtt GamingCWatchLogsGrp.Arn
+          # ---
+          - Sid: "AWSCloudTrailPutLogEvents"
+            Effect: Allow
+            Action:
+              - logs:PutLogEvents
+            Resource:
+              - !GetAtt GamingCWatchLogsGrp.Arn
+
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #         GLUE DEFINITIONS
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  # ------------------------------------------
+  # --- Glue Create Database Defn
+  CloudTrailLogsGlueDatabase:
+    Type: AWS::Glue::Database
+    # .............................
+    Properties:
+      # .............................
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput: 
+        Description: CloudTrail Service Logs Glue Data Catalog
+        Name: "db_cloudtrail_service_logs_test"
+
+  # ------------------------------------------
+  # --- Glue Create Table Defn
+  CloudTrailLogsGlueTable:
+    Type: AWS::Glue::Table
+    # .............................
+    Properties:
+      # .............................
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref CloudTrailLogsGlueDatabase
+      # .............................
+      TableInput:
+        Description: "CloudTrail Service Logs"
+        Name: !Join ["_", ["tbl", !Select [1, !Split ["db_", !Ref CloudTrailLogsGlueDatabase]]]]
+        TableType: "EXTERNAL_TABLE"
+        # .............................
+        Parameters: 
+          EXTERNAL: "TRUE"
+        # .............................
+        StorageDescriptor:
+          Location: !Sub "s3://logs.cfn-cloudtrail-cli/AWSLogs/${AWS::AccountId}/CloudTrail/"
+          InputFormat: "com.amazon.emr.cloudtrail.CloudTrailInputFormat"
+          OutputFormat: "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+          # .............................
+          SerdeInfo: 
+            SerializationLibrary: "com.amazon.emr.hive.serde.CloudTrailSerde"
+            Parameters: 
+              "serialization.format": "1"
+          # .............................     
+          Columns: 
+            - 
+              Name: "eventversion"
+              Type: "string"
+            - 
+              Name: "useridentity"
+              Type: "struct<type:string,principalid:string,arn:string,accountid:string,invokedby:string,accesskeyid:string,userName:string,sessioncontext:struct<attributes:struct<mfaauthenticated:string,creationdate:string>,sessionissuer:struct<type:string,principalId:string,arn:string,accountId:string,userName:string>>>"
+            - 
+              Name: "eventtime"
+              Type: "string"
+            - 
+              Name: "eventsource"
+              Type: "string"
+            - 
+              Name: "eventname"
+              Type: "string"
+            - 
+              Name: "awsregion"
+              Type: "string"
+            - 
+              Name: "sourceipaddress"
+              Type: "string"
+            - 
+              Name: "useragent"
+              Type: "string"
+            - 
+              Name: "errorcode"
+              Type: "string"
+            - 
+              Name: "errormessage"
+              Type: "string"
+            - 
+              Name: "requestparameters"
+              Type: "string"
+            - 
+              Name: "responseelements"
+              Type: "string"
+            - 
+              Name: "additionaleventdata"
+              Type: "string"
+            - 
+              Name: "requestid"
+              Type: "string"
+            - 
+              Name: "eventid"
+              Type: "string"
+            - 
+              Name: "resources"
+              Type: "array<struct<ARN:string,accountId:string,type:string>>"
+            - 
+              Name: "eventtype"
+              Type: "string"
+            - 
+              Name: "apiversion"
+              Type: "string"
+            - 
+              Name: "readonly"
+              Type: "string"
+            - 
+              Name: "recipientaccountid"
+              Type: "string"
+            - 
+              Name: "serviceeventdetails"
+              Type: "string"
+            - 
+              Name: "sharedeventid"
+              Type: "string"
+            - 
+              Name: "vpcendpointid"
+              Type: "string"
+        # .............................
+        PartitionKeys: 
+          - 
+            Name: "region"
+            Type: "string"
+          - 
+            Name: "year"
+            Type: "string"
+          - 
+            Name: "month"
+            Type: "string"
+          - 
+            Name: "day"
+            Type: "string"
+  # ------------------------------------------
+
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #         ATHENA DEFINITIONS
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+  # ------------------------------------------
+  # --- Athena Create Partition
+  CloudTrailPartition:
+    Type: AWS::Athena::NamedQuery
+    # .............................
+    Properties:
+      # .............................
+      Database: !Ref CloudTrailLogsGlueDatabase
+      Description: Create Partition for CloudTrail Service Logs
+      Name: CloudTrail Service Logs - Create Partition
+      QueryString: !Sub
+        |-
+          -- Partition down to the Day:
+          ALTER TABLE ${CloudTrailLogsGlueTable}
+          ADD PARTITION (
+                          region = 'eu-west-1', 
+                          YEAR = '2021', 
+                          MONTH = '03', 
+                          DAY = '19'
+                        ) 
+          LOCATION 's3://logs.${ProjectName}/AWSLogs/${AWS::AccountId}/CloudTrail/eu-west-1/2021/03/19/'
+
+          -- Partition down to the Month:
+          ALTER TABLE ${CloudTrailLogsGlueTable}
+          ADD PARTITION (
+                          region = 'eu-west-1', 
+                          YEAR = '2021', 
+                          MONTH = '03', 
+                          DAY = '*'
+                        ) 
+          LOCATION 's3://logs.${ProjectName}/AWSLogs/${AWS::AccountId}/CloudTrail/eu-west-1/2021/03/'
+  # ------------------------------------------
+
+  # ------------------------------------------
+  # --- Athena Query Examples
+  CloudTrailLogsQueries:
+    Type: AWS::Athena::NamedQuery
+    # .............................
+    Properties:
+      # .............................
+      Database: !Ref CloudTrailLogsGlueDatabase
+      Description: Queries for CloudTrail Service Logs
+      Name: CloudTrail Service Logs - Queries
+      QueryString: !Sub
+        |-
+          -- Simple wide search
+          SELECT
+            useridentity.arn,
+            eventname,
+            sourceipaddress,
+            eventtime 
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          ORDER BY
+            eventtime,
+            eventname ASC LIMIT 100;
+
+          -- Base query template
+          SELECT
+            useridentity.arn,
+            eventname,
+            sourceipaddress,
+            eventtime 
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          WHERE
+            region = 'eu-west-1' 
+            AND YEAR = '2021' 
+            AND MONTH = '03' 
+            AND DAY = '19' LIMIT 100;
+
+          -- Query between time slot
+          SELECT *
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          WHERE
+            eventtime >= '2021-03-26T15:33:00Z' AND
+            eventtime < '2021-03-26T16:15:00Z'
+          ORDER BY
+            eventtime ASC;
+
+          -- General Purpose Event Search
+          SELECT
+            eventtime,
+            eventname,
+            eventsource,
+            errormessage,
+            errorcode,
+            sourceipaddress,
+            useragent,
+            eventType,
+            serviceeventdetails,
+            useridentity.sessioncontext.sessionissuer.arn 
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          WHERE
+            region = 'eu-west-1' 
+            AND YEAR = '2021' 
+            AND MONTH = '03' 
+            AND DAY = '19' 
+          ORDER BY
+            eventtime,
+            eventname ASC LIMIT 10;
+
+          -- WorkMail Event Search
+          SELECT
+            eventtime,
+            eventname,
+            eventsource,
+            errormessage,
+            errorcode,
+            sourceipaddress,
+            useragent,
+            eventType,
+            serviceeventdetails,
+            useridentity.sessioncontext.sessionissuer.arn 
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          WHERE
+            eventsource = 'workmail.amazonaws.com' 
+          ORDER BY
+            eventtime,
+            eventname ASC LIMIT 10;
+
+          -- KMS Decrypt Event Search
+          SELECT
+            eventtime,
+            eventname,
+            eventsource,
+            sourceipaddress,
+            useragent,
+            eventType,
+            serviceeventdetails,
+            useridentity.sessioncontext.sessionissuer.arn 
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          WHERE
+            eventsource = 'kms.amazonaws.com'
+            AND eventname IN ('Decrypt')
+          ORDER BY
+            eventtime ASC;
+
+          -- A more specific search
+          SELECT
+            * 
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          WHERE
+            eventsource = 's3.amazonaws.com' 
+            AND eventname IN ( 'CreateBucket' )
+            AND useridentity.accountid LIKE '%ANONYMOUS%' 
+            AND useridentity.arn IS NULL 
+            AND requestparameters LIKE '%$[ your bucket name ]%';
+
+
+          -- Search EC2 security grp modifications between time slice
+          SELECT
+            eventname,
+            useridentity.username,
+            sourceipaddress,
+            eventtime,
+            requestparameters 
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          WHERE
+            (
+              requestparameters LIKE '%sg-5887f224%' 
+              OR requestparameters LIKE '%sg-e214609e%' 
+              OR requestparameters LIKE '%eni-6c5ca5a8%' 
+            )
+            AND eventtime >= '2021-03-19-15T00:00:00Z' 
+            AND eventtime < '2021-03-18-15T00:00:00Z' 
+          ORDER BY
+            eventtime ASC LIMIT 10;
+
+
+          -- Search for suspicious ConsoleLogin
+          SELECT
+            useridentity.username,
+            sourceipaddress,
+            json_extract_scalar(additionaleventdata, '$.MobileVersion') AS MobileVersion,
+            eventtime,
+            additionaleventdata,
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          WHERE
+            eventname = 'ConsoleLogin' 
+            AND 
+            (
+              json_extract_scalar(additionaleventdata, '$.MobileVersion') = 'Yes' 
+              OR sourceipaddress NOT LIKE '72.21.%' 
+              AND eventtime >= '2021-03-19-15T00:00:00Z' 
+              AND eventtime < '2021-03-18-15T00:00:00Z'
+            )
+          ORDER BY
+            eventtime ASC LIMIT 10;
+
+
+          -- Search AWS event errors
+          SELECT
+            COUNT (*) AS TotalEvents,
+            eventname,
+            errorcode,
+            errormessage 
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          WHERE
+            errorcode IS NOT NULL 
+            AND eventtime >= '2017-01-01T00:00:00Z' 
+          GROUP BY
+            eventname,
+            errorcode,
+            errormessage 
+          ORDER BY
+            TotalEvents DESC LIMIT 10;
+
+          -- Top IAM users
+          SELECT
+            COUNT (*) AS TotalEvents,
+            useridentity.username,
+            eventname 
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          WHERE
+            eventtime >= '2021-01-01T00:00:00Z' 
+            AND useridentity.type = 'IAMUser' 
+          GROUP BY
+            useridentity.username,
+            eventname 
+          ORDER BY
+            TotalEvents DESC;
+
+          -- Top Root Activity
+          SELECT
+            COUNT (*) AS TotalEvents,
+            eventname,
+            useridentity.invokedby 
+          FROM
+            ${CloudTrailLogsGlueTable} 
+          WHERE
+            eventtime >= '2021-01-01T00:00:00Z' 
+            AND useridentity.type = 'Root' 
+          GROUP BY
+            useridentity.username,
+            eventname,
+            useridentity.invokedby 
+          ORDER BY
+            TotalEvents DESC;
+
+
+          -- Search for DeleteBucket Events
+          SELECT
+            awsregion,
+            replace(unnested.resources_entry.ARN, 'arn:aws:s3:::') AS deleted_bucket,
+            eventtime AS time_deleted,
+            useridentity.username,
+            unnested.resources_entry.accountid AS bucket_acct_id 
+          FROM
+            ${CloudTrailLogsGlueTable} tbl 
+            CROSS JOIN
+              UNNEST(tbl.resources) unnested (resources_entry) 
+          WHERE
+            eventname = 'DeleteBucket' 
+          ORDER BY
+            eventtime ASC LIMIT 10;
+  # ------------------------------------------
+
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #    CLOUDWATCH CLOUDTRAIL METRIC ALARMS
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+  # ------------------------------------------
+  # --- Athena Create Partition
+
+
+# ==========================================
+Outputs: {}
+# Outputs:
+
+

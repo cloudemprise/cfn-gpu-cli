@@ -396,7 +396,6 @@ STACK_POLICY_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/polic
 
 echo "Cloudformation Stack Creation Initiated .......: $TEMPLATE_URL"
 
-TIME_START_STACK=$(date +%s)
 #-----------------------------
 STACK_ID=$(aws cloudformation create-stack --stack-name "$STACK_NAME" --parameters      \
                 ParameterKey=ProjectName,ParameterValue="$PROJECT_NAME"                 \
@@ -413,7 +412,7 @@ STACK_ID=$(aws cloudformation create-stack --stack-name "$STACK_NAME" --paramete
 #-----------------------------
 if [[ $? -eq 0 ]]; then
   # Wait for stack creation to complete
-  echo "Cloudformation Stack Creation Process Wait.....: $STACK_ID"
+  echo "Cloudformation Stack Creation In Progress .....: $STACK_ID"
   CREATE_STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
   while [[ $CREATE_STACK_STATUS == "REVIEW_IN_PROGRESS" ]] || [[ $CREATE_STACK_STATUS == "CREATE_IN_PROGRESS" ]]
   do
@@ -436,50 +435,71 @@ else
 fi
 #-----------------------------
 # Calculate Stack Creation Execution Time
-TIME_END_STACK=$(date +%s)
-TIME_DIFF_STACK=$((TIME_END_STACK - TIME_START_STACK))
+TIME_END_PT=$(date +%s)
+TIME_DIFF_PT=$((TIME_END_PT - TIME_START_PROJ))
 echo "$BUILD_COUNTER Finished Execution Time ................: \
-$(( TIME_DIFF_STACK / 3600 ))h $(( (TIME_DIFF_STACK / 60) % 60 ))m $(( TIME_DIFF_STACK % 60 ))s"
+$(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 60 ))s"
 #.............................
 #.............................
 
 
 #-----------------------------
 # Grab the IDs of the ec2 instances for further processing
-INSTANCE_ID_PUB=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text --query "Stacks[].Outputs[?OutputKey == 'InstanceIdPublic'].OutputValue" --profile "$AWS_PROFILE" --region "$AWS_REGION")
-echo "Public Subnet EC2 Instance ID .................: $INSTANCE_ID_PUB"
-#INSTANCE_ID_PRIV=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text --query "Stacks[].Outputs[?OutputKey == 'InstanceIdPrivate'].OutputValue" --profile "$AWS_PROFILE" --region "$AWS_REGION")
-#echo "Private Subnet EC2 Instance ID ................: $INSTANCE_ID_PRIV"
+INSTANCE_PUB_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
+  --query "Stacks[].Outputs[?OutputKey == 'InstanceIdPublicBuild'].OutputValue"                  \
+  --profile "$AWS_PROFILE" --region "$AWS_REGION")
+echo "Public Subnet EC2 Instance ID .................: $INSTANCE_PUB_ID"
+#.............................
 
+#################################################################
+# INSERT HERE WAIT TIMER SCRIPT WHILE WAITING ON INSTANCE STATUS:
 #-----------------------------
 # Validity Check. Wait for instance status ok before moving on.
-aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_ID_PUB" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
+aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
 P1=$!
-#aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_ID_PRIV" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
-#P2=$!
-#wait $P1 $P2
 wait $P1
 echo "Public Subnet EC2 Instance State ..............: Ok"
-#echo "Private Subnet EC2 Instance State .............: Ok"
 #.............................
+
+
+
+
+
+#-----------------------------
+# Grab the Admin Password
+# Do local decryption on password later.
+INSTANCE_PUB_PASSWD=$(aws ec2 get-password-data --instance-id "$INSTANCE_PUB_ID"          \
+  --priv-launch-key ./ssh/aws.dev.ec2.win.ssh.key.eu-central-1.pem --query 'PasswordData' \
+  --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+echo "Retrieving Public Instance Admin Password .....: $INSTANCE_PUB_PASSWD"
+echo "$INSTANCE_PUB_PASSWD" > /tmp/password
+#.............................
+
+
+
+
 
 #-----------------------------
 # Shuntdown instance for faster image creation
-aws ec2 stop-instances --instance-ids "$INSTANCE_ID_PUB" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null
+aws ec2 stop-instances --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null
 echo "Stopping Public Instances Initiated ...........: "
 #.............................
 
 #-----------------------------
 # Wait for new AMIs to become available
-aws ec2 wait instance-stopped --instance-ids "$INSTANCE_ID_PUB" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
+aws ec2 wait instance-stopped --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
 P1=$!
 wait $P1
-echo "Public Instances have now stopped .............: $INSTANCE_ID_PUB "
+echo "Public Instances have now stopped .............: $INSTANCE_PUB_ID "
 #.............................
 
+
+#################################################################
+# INSERT HERE WAIT TIMER SCRIPT WHILE WAITING ON INSTANCE STATUS:
 #-----------------------------
 # Create IMAGE AMIs
-AMI_IMAGE_PUB=$(aws ec2 create-image --instance-id "$INSTANCE_ID_PUB" --name "${PROJECT_NAME}-gaming-pub" --description "${PROJECT_NAME}-gaming-pub-ami" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+AMI_IMAGE_PUB=$(aws ec2 create-image --instance-id "$INSTANCE_PUB_ID" --name "${PROJECT_NAME}-gaming-pub" \
+  --description "${PROJECT_NAME}-gaming-pub-ami" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
 echo "Public Subnet EC2 AMI Creation Initiated ......: "
 #.............................
 
@@ -502,9 +522,16 @@ aws ec2 create-tags --resources "$AMI_IMAGE_PUB" --tags Key=Name,Value="${PROJEC
 
 #-----------------------------
 # Terminate the instances - no longer needed.
-#aws ec2 terminate-instances --instance-ids "$INSTANCE_ID_PUB" "$INSTANCE_ID_PRIV" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null
-aws ec2 terminate-instances --instance-ids "$INSTANCE_ID_PUB" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null
-echo "$BUILD_COUNTER Instances Terminated ...................:"
+aws ec2 terminate-instances --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null
+#.............................
+
+#-----------------------------
+# Calculate AMI Creation Execution Time
+TIME_END_PT=$(date +%s)
+TIME_DIFF_PT=$((TIME_END_PT - TIME_START_PROJ))
+echo "Build Instance Terminated AMI Creation Time ...: \
+$(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 60 ))s"
+#.............................
 #.............................
 
 
@@ -512,8 +539,7 @@ echo "$BUILD_COUNTER Instances Terminated ...................:"
 #-----------------------------
 # Stage3 Stack Creation Code Block
 BUILD_COUNTER="stage3"
-echo "Cloudformation Stack Update Initiated .........: $STACK_ID"
-TIME_START_STACK=$(date +%s)
+echo "Cloudformation Stack Update Initiated .........: "
 #-----------------------------
 aws cloudformation update-stack --stack-name "$STACK_ID" --parameters \
       ParameterKey=BuildStep,ParameterValue="$BUILD_COUNTER"          \
@@ -522,14 +548,14 @@ aws cloudformation update-stack --stack-name "$STACK_ID" --parameters \
       ParameterKey=DomainName,UsePreviousValue=true                   \
       ParameterKey=DomainHostedZoneId,UsePreviousValue=true           \
       ParameterKey=SshAccessCIDR,UsePreviousValue=true                \
-      ParameterKey=GamingEmailAddrSNS,UsePreviousValue=true                 \
+      ParameterKey=GamingEmailAddrSNS,UsePreviousValue=true           \
       --stack-policy-url "$STACK_POLICY_URL" --use-previous-template  \
       --profile "$AWS_PROFILE" --region "$AWS_REGION"                 \
       --tags Key=Name,Value="$PROJECT_NAME" > /dev/null    
 #-----------------------------
 if [[ $? -eq 0 ]]; then
   # Wait for stack creation to complete
-  echo "Cloudformation Stack Update Process Wait.......: $STACK_ID"
+  echo "Cloudformation Stack Update In Progress .......: $STACK_ID"
   CREATE_STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
   while [[ $CREATE_STACK_STATUS == "UPDATE_IN_PROGRESS" ]] || [[ $CREATE_STACK_STATUS == "CREATE_IN_PROGRESS" ]]
   do
@@ -557,25 +583,51 @@ fi
 
 #-----------------------------
 # Calculate Stack Creation Execution Time
-TIME_END_STACK=$(date +%s)
-TIME_DIFF_STACK=$(( TIME_END_STACK - TIME_START_STACK))
+TIME_END_PT=$(date +%s)
+TIME_DIFF_PT=$((TIME_END_PT - TIME_START_PROJ))
 echo "$BUILD_COUNTER Finished Execution Time ................: \
-$(( TIME_DIFF_STACK / 3600 ))h $(( (TIME_DIFF_STACK / 60) % 60 ))m $(( TIME_DIFF_STACK % 60 ))s"
+$(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 60 ))s"
 #.............................
 #.............................
+
 
 #-----------------------------
 # Grab the IDs of the ec2 instances for further processing
-INSTANCE_ID_PUB=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
-    --profile "$AWS_PROFILE" --region "$AWS_REGION"                                         \
-    --query "Stacks[].Outputs[?OutputKey == 'InstanceIdPublic'].OutputValue")
-echo "Gaming Server EC2 Instance ID .........................: $INSTANCE_ID_PRIV"
+#INSTANCE_PUB_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
+#    --profile "$AWS_PROFILE" --region "$AWS_REGION"                                         \
+#    --query "Stacks[].Outputs[?OutputKey == 'InstanceIdPublicLaunch'].OutputValue")
+#echo "Gaming Server EC2 Instance ID .........................: $INSTANCE_PUB_ID"
 #.............................
+
+
+#-----------------------------
+# Grab the IDs of the ec2 instances for further processing
+#aws ec2 describe-instances --output text --query 'Reservations[].Instances[].[Tags[?Key==`Name`].Value|[0],InstanceId]'
+#INSTANCE_PUB_ID=$(aws ec2 describe-instances --output text --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+# --query "Reservations[].Instances[]|[?Tags[?Value=='cfn-gpu-rig-cli-autoscale-grp']]|[?State.Name=='running'].InstanceId")
+#...
+INSTANCE_PUB_ID=$(aws ec2 describe-instances --output text --filters Name=instance-state-name,Values=running \
+  --query "Reservations[].Instances[]|[?Tags[?Value=='cfn-gpu-rig-cli-autoscale-grp']].InstanceId" \
+  --profile "$AWS_PROFILE" --region "$AWS_REGION")
+echo "Gaming Server EC2 Instance ID .................: $INSTANCE_PUB_ID"
+#.............................
+
+
+#-----------------------------
+# Grab the DNS of the ec2 instances for further processing
+INSTANCE_PUB_DNS=$(aws ec2 describe-instances --instance-ids "$INSTANCE_PUB_ID" \
+    --query 'Reservations[].Instances[].PublicDnsName' --output text            \
+    --profile  "$AWS_PROFILE" --region "$AWS_REGION")
+echo "Gaming Server EC2 Instance DNS ................: $INSTANCE_PUB_DNS"
+#.............................
+
+
+
 
 #-----------------------------
 # Calculate Script Total Execution Time
-TIME_END_PROJ=$(date +%s)
-TIME_DIFF=$((TIME_END_PROJ - TIME_START_PROJ))
+TIME_END_PT=$(date +%s)
+TIME_DIFF_PT=$((TIME_END_PT - TIME_START_PROJ))
 echo "Total Finished Execution Time .................: \
-$(( TIME_DIFF / 3600 ))h $(( (TIME_DIFF / 60) % 60 ))m $(( TIME_DIFF % 60 ))s"
+$(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 60 ))s"
 #.............................
