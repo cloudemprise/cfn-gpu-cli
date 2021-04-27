@@ -96,11 +96,7 @@ Resources:
       CidrBlock: "10.0.128.0/20"
       MapPublicIpOnLaunch: true
       VpcId: !Ref VPC
-      AvailabilityZone:
-        'Fn::Select':
-          - '0'
-          - 'Fn::GetAZs':
-              Ref: 'AWS::Region'
+      AvailabilityZone: !Select [ "0", !GetAZs ]
       Tags:
         - Key: "Name"
           Value:
@@ -115,11 +111,7 @@ Resources:
       CidrBlock: "10.0.144.0/20"
       MapPublicIpOnLaunch: true
       VpcId: !Ref VPC
-      AvailabilityZone:
-        'Fn::Select':
-          - '1'
-          - 'Fn::GetAZs':
-              Ref: 'AWS::Region'
+      AvailabilityZone: !Select [ "1", !GetAZs ]
       Tags:
         - Key: "Name"
           Value:
@@ -134,11 +126,7 @@ Resources:
       CidrBlock: "10.0.0.0/19"
       MapPublicIpOnLaunch: false
       VpcId: !Ref VPC
-      AvailabilityZone:
-        'Fn::Select':
-          - '0'
-          - 'Fn::GetAZs':
-              Ref: 'AWS::Region'
+      AvailabilityZone: !Select [ "0", !GetAZs ]
       Tags:
         - Key: "Name"
           Value:
@@ -153,11 +141,7 @@ Resources:
       CidrBlock: "10.0.32.0/19"
       MapPublicIpOnLaunch: false
       VpcId: !Ref VPC
-      AvailabilityZone:
-        'Fn::Select':
-          - '1'
-          - 'Fn::GetAZs':
-              Ref: 'AWS::Region'
+      AvailabilityZone: !Select [ "1", !GetAZs ]
       Tags:
         - Key: "Name"
           Value:
@@ -205,6 +189,7 @@ Resources:
       RouteTableId: !Ref RouteTablePublic
       GatewayId: !Ref Igw
 
+
   # ------------------------------------------
   # --- Private A Route Table
   RouteTablePrivateA:
@@ -225,15 +210,6 @@ Resources:
       RouteTableId: !Ref RouteTablePrivateA
       SubnetId: !Ref PrivateSubnetA
 
-  # ------------------------------------------
-  RouteTablePrivateARoute0:
-    Type: "AWS::EC2::Route"
-    Condition: CreateResourcesStage2
-    # .............................
-    Properties:
-      DestinationCidrBlock: "0.0.0.0/0"
-      RouteTableId: !Ref RouteTablePrivateA
-      NatGatewayId: !Ref NatGw1
 
   # ------------------------------------------
   # --- Private B Route Table
@@ -253,16 +229,6 @@ Resources:
     Properties:
       RouteTableId: !Ref RouteTablePrivateB
       SubnetId: !Ref PrivateSubnetB
-
-  # ------------------------------------------
-  RouteTablePrivateBRoute0:
-    Type: "AWS::EC2::Route"
-    Condition: CreateResourcesStage2
-    # .............................
-    Properties:
-      DestinationCidrBlock: "0.0.0.0/0"
-      RouteTableId: !Ref RouteTablePrivateB
-      NatGatewayId: !Ref NatGw1
 
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -284,28 +250,6 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref Igw
-
-  # ------------------------------------------
-  # --- NAT Gateway IP address
-  NatGw1ElasticIP:
-    Type: "AWS::EC2::EIP"
-    Condition: CreateResourcesStage2
-    # .............................
-    Properties:
-      Domain: vpc
-
-  # ------------------------------------------
-  # --- NAT Gateway
-  NatGw1:
-    Type: "AWS::EC2::NatGateway"
-    Condition: CreateResourcesStage2
-    # .............................
-    Properties:
-      SubnetId: !Ref PublicSubnetA
-      AllocationId:
-        'Fn::GetAtt':
-          - NatGw1ElasticIP
-          - AllocationId
 
 
 # ==========================================

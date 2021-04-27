@@ -180,6 +180,8 @@ Resources:
           !Ref CurrentAmi
         PublicSubnetIdA:
           !GetAtt VPCDef.Outputs.PublicSubnetIdA
+        PublicSubnetIdB:
+          !GetAtt VPCDef.Outputs.PublicSubnetIdB
         PublicSgResourceId:
           !GetAtt SgDefs.Outputs.PublicSgResourceId
       TimeoutInMinutes: 10

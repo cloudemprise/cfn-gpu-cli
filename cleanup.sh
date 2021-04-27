@@ -196,7 +196,7 @@ fi
 
 #-----------------------------
 # Delete Project Bucket 
-STACK_NAME="cfnstack-cfn-gpu-rig-cli"
+STACK_NAME="cfn-gpu-rig-cli-stack"
 if (aws cloudformation describe-stacks --stack-name "$STACK_NAME" --profile "$AWS_PROFILE" \
     --region "$AWS_REGION" > /dev/null)
 then

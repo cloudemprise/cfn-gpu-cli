@@ -147,7 +147,7 @@ echo "FQDN Gaming Server ............................: ${PROJECT_NAME}.${AWS_DOM
 # Variable Creation
 #-----------------------------
 # Name given to Cloudformation Stack
-STACK_NAME="cfnstack-$PROJECT_NAME"
+STACK_NAME="$PROJECT_NAME-stack"
 echo "The Stack Name ................................: $STACK_NAME"
 # Get Account(ROOT) ID
 AWS_ACC_ID=$(aws sts get-caller-identity --query Account --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
@@ -391,7 +391,7 @@ fi
 #-----------------------------
 # Stage1 Stack Creation Code Block
 BUILD_COUNTER="stage1"
-TEMPLATE_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli.yaml"
+TEMPLATE_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/cfn-templates/${PROJECT_NAME}.yaml"
 STACK_POLICY_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/policies/cfn-stacks/${PROJECT_NAME}-${BUILD_COUNTER}-cfn-stack-policy.json"
 
 echo "Cloudformation Stack Creation Initiated .......: $TEMPLATE_URL"
@@ -417,7 +417,7 @@ if [[ $? -eq 0 ]]; then
   while [[ $CREATE_STACK_STATUS == "REVIEW_IN_PROGRESS" ]] || [[ $CREATE_STACK_STATUS == "CREATE_IN_PROGRESS" ]]
   do
       # Wait 1 seconds and then check stack status again
-      sleep 1
+      sleep 2
       printf '.'
       CREATE_STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
   done
@@ -451,18 +451,53 @@ INSTANCE_PUB_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --
 echo "Public Subnet EC2 Instance ID .................: $INSTANCE_PUB_ID"
 #.............................
 
-#################################################################
-# INSERT HERE WAIT TIMER SCRIPT WHILE WAITING ON INSTANCE STATUS:
+
 #-----------------------------
 # Validity Check. Wait for instance status ok before moving on.
-aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
-P1=$!
-wait $P1
-echo "Public Subnet EC2 Instance State ..............: Ok"
+echo "Waiting on Instance Status ok .................: $INSTANCE_PUB_ID"
+CHECK_INSTANCE_STATUS=$(aws ec2 describe-instance-status --instance-ids "$INSTANCE_PUB_ID" --query 'InstanceStatuses[0].InstanceStatus.Status' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+while [[ $CHECK_INSTANCE_STATUS != "ok" ]]
+do
+    # Wait 3 seconds and then check stack status again
+    sleep 3
+    printf '.'
+    CHECK_INSTANCE_STATUS=$(aws ec2 describe-instance-status --instance-ids "$INSTANCE_PUB_ID" --query 'InstanceStatuses[0].InstanceStatus.Status' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+done
+printf '\n'
+echo "Public Subnet EC2 Instance State ..............: OK"
+#-----------------------------
+# Previous Solution:
+#aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
+#P1=$!
+#wait $P1
 #.............................
 
 
 
+#-----------------------------
+# Wait for SSM Agent to be detected
+CHECK_ID_SSM=""
+CHECK_ID_SSM=$(aws ssm describe-instance-information --query "InstanceInformationList[].InstanceId" --output text \
+  --filters "Key=tag:Name,Values=${PROJECT_NAME}-gpu-build" --profile "$AWS_PROFILE" --region "$AWS_REGION")
+#.............................
+if [[ $? -eq 0 ]]; then
+  # Wait for stack creation to complete
+  echo "Waiting for SSM Agent to be Dectected .........: "
+  while [[ $CHECK_ID_SSM == "" ]]
+  do
+      # Wait 3 seconds and then check stack status again
+      sleep 3
+      printf '.'
+      CHECK_ID_SSM=$(aws ssm describe-instance-information --query "InstanceInformationList[].InstanceId" --output text \
+        --filters "Key=tag:Name,Values=${PROJECT_NAME}-gpu-build" --profile "$AWS_PROFILE" --region "$AWS_REGION")
+  done
+  printf '\n'
+  echo "SSM Agent detected on Instance with ID ........: $CHECK_ID_SSM"
+else
+  echo "Error in SSM Agent Detection ..................: $INSTANCE_PUB_ID"
+  exit 1
+fi
+#-----------------------------
 
 
 #-----------------------------
@@ -476,7 +511,55 @@ echo "$INSTANCE_PUB_PASSWD" > /tmp/password
 #.............................
 
 
+#-----------------------------
+# Update SSM Agent 
+echo "Update SSM Agent on Instance ..................: $INSTANCE_PUB_ID"
+SSM_COMMAND_ID=$(aws ssm send-command --document-name "AWS-UpdateSSMAgent" --instance-ids "$INSTANCE_PUB_ID" \
+  --output text --profile "$AWS_PROFILE" --region "$AWS_REGION" --query 'Command.CommandId')
+echo "Waiting for SSM Agent Update with Command ID ..: $SSM_COMMAND_ID"
+#.............................
+aws ssm wait command-executed --command-id "$SSM_COMMAND_ID" --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
+P1=$!
+wait $P1
+#.............................
+if [[ $? -eq 0 ]]; then
+  echo "Success! SSM Agent Updated with Command ID ....: $SSM_COMMAND_ID"
+else
+  echo "Error! SSM Agent Failed Update Command ID .....: $INSTANCE_PUB_ID"
+  exit 1
+fi
+#-----------------------------
 
+
+#-----------------------------
+# Install EC2 Launch Agent
+echo "Installing EC2 Launch Agent on Instance .......: $INSTANCE_PUB_ID"
+#SSM_PARAMETERS='{"action":["Install"],"installationType":["Uninstall and reinstall"],"name":["AWSEC2Launch-Agent"],"version":[""],"additionalArguments":["{}"]}'
+SSM_PARAMETERS='{"action":["Install"],"installationType":["Uninstall and reinstall"],"name":["AWSEC2Launch-Agent"]}'
+SSM_COMMAND_ID=$(aws ssm send-command --document-name "AWS-ConfigureAWSPackage" --instance-ids "$INSTANCE_PUB_ID" \
+  --parameters "$SSM_PARAMETERS" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION" --query 'Command.CommandId')
+echo "Waiting for EC2 Launch Agent Installation ID ..: $SSM_COMMAND_ID"
+#.............................
+aws ssm wait command-executed --command-id "$SSM_COMMAND_ID" --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
+P1=$!
+wait $P1
+#.............................
+if [[ $? -eq 0 ]]; then
+  echo "Success! EC2 Launch Agent Installed ID ........: $SSM_COMMAND_ID"
+else
+  echo "Error! EC2 Launch Agent Failed Installation ...: $INSTANCE_PUB_ID"
+  exit 1
+fi
+#-----------------------------
+
+
+
+
+
+
+#!! COMMENT Construct Begins Here:
+: <<'END'
+#!! COMMENT BEGIN
 
 
 #-----------------------------
@@ -498,8 +581,8 @@ echo "Public Instances have now stopped .............: $INSTANCE_PUB_ID "
 # INSERT HERE WAIT TIMER SCRIPT WHILE WAITING ON INSTANCE STATUS:
 #-----------------------------
 # Create IMAGE AMIs
-AMI_IMAGE_PUB=$(aws ec2 create-image --instance-id "$INSTANCE_PUB_ID" --name "${PROJECT_NAME}-gaming-pub" \
-  --description "${PROJECT_NAME}-gaming-pub-ami" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+AMI_IMAGE_PUB=$(aws ec2 create-image --instance-id "$INSTANCE_PUB_ID" --name "${PROJECT_NAME}-gpu-build" \
+  --description "${PROJECT_NAME}-gpu-build-ami" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
 echo "Public Subnet EC2 AMI Creation Initiated ......: "
 #.............................
 
@@ -517,7 +600,7 @@ echo "Public Subnet EC2 AMI Image is Now Available ..: $AMI_IMAGE_PUB "
 
 #-----------------------------
 # Give AMIs a Name Tag
-aws ec2 create-tags --resources "$AMI_IMAGE_PUB" --tags Key=Name,Value="${PROJECT_NAME}-gaming-pub" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+aws ec2 create-tags --resources "$AMI_IMAGE_PUB" --tags Key=Name,Value="${PROJECT_NAME}-gpu-build" --profile "$AWS_PROFILE" --region "$AWS_REGION"
 #.............................
 
 #-----------------------------
@@ -622,6 +705,11 @@ echo "Gaming Server EC2 Instance DNS ................: $INSTANCE_PUB_DNS"
 #.............................
 
 
+
+
+#!! COMMENT END
+END
+#!! COMMENT Construct Ends Here:
 
 
 #-----------------------------

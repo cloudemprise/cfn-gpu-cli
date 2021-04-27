@@ -40,6 +40,12 @@ Parameters:
     Type: "AWS::EC2::Subnet::Id"
 
   # ------------------------------------------
+  # --- Public Subnet ID
+  PublicSubnetIdB:
+    Description: "Public Subnet ID AZ-B"
+    Type: "AWS::EC2::Subnet::Id"
+
+  # ------------------------------------------
   # --- Public Security Group Resource ID
   PublicSgResourceId:
     Description: "Public Security Group ID AZ-A"
@@ -69,7 +75,7 @@ Resources:
       Tags:
         -
           Key: "Name"
-          Value: !Sub "${ProjectName}-gaming-pub"
+          Value: !Sub "${ProjectName}-gpu-build"
       # .............................
       AvailabilityZone: !Select [ "0", !GetAZs ]
         #'Fn::Select':
@@ -98,30 +104,34 @@ Resources:
       Tenancy: "default"
       # .............................
       #IamInstanceProfile: !Sub "${ProjectName}-pub-iam-ec2-${AWS::Region}"
-      IamInstanceProfile: "role.ec2-usr-datascience.eu-central-1"
+      #IamInstanceProfile: "role.ec2-usr-datascience.eu-central-1"
+      IamInstanceProfile: "role.ec2-usr-pwr"
       ImageId: !Ref PublicAmiId
       InstanceType: "t2.micro"
       #InstanceType: "g4dn.xlarge"
       KeyName: !Sub "aws.dev.ec2.win.ssh.key.${AWS::Region}"
       # .............................
+      #SubnetId: !Ref PublicSubnetIdA
+      #SecurityGroupIds: 
+      #  - !Ref PublicSgResourceId
       NetworkInterfaces:
         -
           Description: "Primary Public NIC"
           DeleteOnTermination: true
           DeviceIndex: "0"
           PrivateIpAddress: "10.0.128.10"
+          #PrivateIpAddress: "10.0.144.10"
           SubnetId: !Ref PublicSubnetIdA
           GroupSet:
             - !Ref PublicSgResourceId
       # .............................
-      UserData:
-        Fn::Base64:
-          !Sub |
-            <powershell>
-                Copy-S3Object -BucketName depot.ce-windows -KeyPrefix shared -LocalFolder "C:\Users\Administrator\Downloads" -Region eu-central-1
-                Start-Process msiexec.exe -Wait -ArgumentList '/I C:\Users\Administrator\Downloads\awscli\AWSCLIV2.msi /passive'
-                Start-Process msiexec.exe -Wait -ArgumentList '/I "C:\Users\Administrator\Downloads\firefox\install\Firefox Setup 78.9.0esr.msi" /passive'
-            </powershell>
+      #UserData:
+      #  Fn::Base64:
+      #      <powershell>
+      #          Copy-S3Object -BucketName depot.ce-windows -KeyPrefix shared -LocalFolder "C:\Users\Administrator\Downloads" -Region eu-central-1
+      #          Start-Process msiexec.exe -Wait -ArgumentList '/I C:\Users\Administrator\Downloads\awscli\AWSCLIV2.msi /passive'
+      #          Start-Process msiexec.exe -Wait -ArgumentList '/I "C:\Users\Administrator\Downloads\firefox\install\Firefox Setup 78.9.0esr.msi" /passive'
+      #      </powershell>
       # .............................
 
 
