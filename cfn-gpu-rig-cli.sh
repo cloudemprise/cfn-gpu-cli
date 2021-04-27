@@ -475,13 +475,13 @@ echo "Public Subnet EC2 Instance State ..............: OK"
 
 
 #-----------------------------
-# Wait for SSM Agent to be detected
+# Detect SSM Agent (Wait)
 CHECK_ID_SSM=""
 CHECK_ID_SSM=$(aws ssm describe-instance-information --query "InstanceInformationList[].InstanceId" --output text \
   --filters "Key=tag:Name,Values=${PROJECT_NAME}-gpu-build" --profile "$AWS_PROFILE" --region "$AWS_REGION")
 #.............................
 if [[ $? -eq 0 ]]; then
-  # Wait for stack creation to complete
+  # Wait for detection to complete
   echo "Waiting for SSM Agent to be Dectected .........: "
   while [[ $CHECK_ID_SSM == "" ]]
   do
@@ -554,14 +554,6 @@ fi
 
 
 
-
-
-
-#!! COMMENT Construct Begins Here:
-: <<'END'
-#!! COMMENT BEGIN
-
-
 #-----------------------------
 # Shuntdown instance for faster image creation
 aws ec2 stop-instances --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null
@@ -577,26 +569,26 @@ echo "Public Instances have now stopped .............: $INSTANCE_PUB_ID "
 #.............................
 
 
-#################################################################
-# INSERT HERE WAIT TIMER SCRIPT WHILE WAITING ON INSTANCE STATUS:
-#-----------------------------
-# Create IMAGE AMIs
-AMI_IMAGE_PUB=$(aws ec2 create-image --instance-id "$INSTANCE_PUB_ID" --name "${PROJECT_NAME}-gpu-build" \
-  --description "${PROJECT_NAME}-gpu-build-ami" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
-echo "Public Subnet EC2 AMI Creation Initiated ......: "
-#.............................
 
 #-----------------------------
-# Wait for new AMIs to become available
+# Create Golden AMI
+echo "Initiate AMI Creation Public EC2 Instance .....: "
+AMI_IMAGE_PUB=$(aws ec2 create-image --instance-id "$INSTANCE_PUB_ID" --name "${PROJECT_NAME}-gpu-build" \
+  --description "${PROJECT_NAME}-gpu-build-ami" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+echo "Waiting for AMI Creation to complete ..........: $AMI_IMAGE_PUB"
+#.............................
 aws ec2 wait image-available --image-ids "$AMI_IMAGE_PUB" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
 P1=$!
-#aws ec2 wait image-available --image-ids "$AMI_IMAGE_PRIV" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
-#P2=$!
-#wait $P1 $P2
 wait $P1
-echo "Public Subnet EC2 AMI Image is Now Available ..: $AMI_IMAGE_PUB "
-#echo "Private Subnet EC2 AMI Image is Now Available .: $AMI_IMAGE_PRIV"
 #.............................
+if [[ $? -eq 0 ]]; then
+  echo "Public EC2 Instance AMI now available .........: $AMI_IMAGE_PUB "
+else
+  echo "Error! Public EC2 Instance AMI Creation Failed : $AMI_IMAGE_PUB"
+  exit 1
+fi
+#-----------------------------
+
 
 #-----------------------------
 # Give AMIs a Name Tag
@@ -705,11 +697,6 @@ echo "Gaming Server EC2 Instance DNS ................: $INSTANCE_PUB_DNS"
 #.............................
 
 
-
-
-#!! COMMENT END
-END
-#!! COMMENT Construct Ends Here:
 
 
 #-----------------------------
