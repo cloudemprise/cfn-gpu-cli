@@ -31,7 +31,7 @@ do
   # -p : prompt on stderr
   # -i : use default buffer val
   read -er -i "$AWS_PROFILE" -p "Enter Project AWS CLI Named Profile ...........: " USER_INPUT
-  if aws configure list-profiles 2>/dev/null | fgrep -qw "$USER_INPUT"
+  if aws configure list-profiles 2>/dev/null | grep -qw -- "$USER_INPUT"
   then
     echo "Project AWS CLI Named Profile is valid ........: $USER_INPUT"
     AWS_PROFILE=$USER_INPUT
@@ -52,7 +52,7 @@ do
   # -p : prompt on stderr
   # -i : use default buffer val
   read -er -i "$AWS_REGION" -p "Enter Project AWS CLI Region ..................: " USER_INPUT
-  if aws ec2 describe-regions --profile "$AWS_PROFILE" --query 'Regions[].RegionName' --output text 2>/dev/null | fgrep -qw "$USER_INPUT"
+  if aws ec2 describe-regions --profile "$AWS_PROFILE" --query 'Regions[].RegionName' --output text 2>/dev/null | grep -qw -- "$USER_INPUT"
   then
     echo "Project AWS CLI Region is valid ...............: $USER_INPUT"
     AWS_REGION=$USER_INPUT
@@ -170,6 +170,92 @@ AMI_LATEST=$(aws ssm get-parameters --output text --names "$AMI_NAME" \
     --query 'Parameters[0].[Value]' --profile "$AWS_PROFILE" --region "$AWS_REGION")
 echo "The lastest AMI ...............................: $AMI_LATEST"
 #.............................
+
+
+
+
+#-----------------------------
+# Check if SSM UpdateWindowsAmi is required
+# USER_INPUT=valid AMI_ID bypass SSM UpdateWindowsAmi
+# USER_INPUT=Execute to perform UpdateWindowsAmi 
+AMI_UPDATE="Execute"
+while true
+do
+  # -e : stdin from terminal
+  # -r : backslash not an escape character
+  # -p : prompt on stderr
+  # -i : use default buffer val
+  read -er -i "$AMI_UPDATE" -p "Enter PreUpdated SSM AMI ID or Execute ........: " USER_INPUT
+  #-----------------------------
+  if aws ec2 describe-images --owners self --query 'Images[].ImageId' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION" 2>/dev/null | grep -qw -- "$USER_INPUT"
+  then
+    # A valid AMI ID was found. SSM UpdateWindowsAmi not needed
+    AMI_UPDATE="$USER_INPUT"
+    echo "PreUpdated SSM AMI ID is valid ................: $AMI_UPDATE"
+    AMI_LATEST="$AMI_UPDATE"
+    break
+  #-----------------------------
+  elif [[ "$USER_INPUT" == "$AMI_UPDATE" ]]; then
+    # Execute SSM UpdateWindowsAmi Document
+    echo "Will now perform SSM Update on the Latest AMI .: $AMI_LATEST"
+
+      #-----------------------------
+      # Execute Automation Document to Update AMI
+      SSM_AUTO_DOC="AWS-UpdateWindowsAmi"
+      EC2_PROFILE="role.ec2-usr-pwr"
+      #SSM_SERVICE_ROLE="arn:aws:iam::${AWS_ACC_ID}:role/AutomationServiceRole"
+      SSM_SERVICE_ROLE="arn:aws:iam::311674589786:role/role.ssm-automation.eu-central-1"
+      #-----------------------------
+      COMMAND_ID=$(aws ssm start-automation-execution --document-name="$SSM_AUTO_DOC" --output text --parameters \
+        SourceAmiId="$AMI_LATEST",IamInstanceProfileName="$EC2_PROFILE",AutomationAssumeRole="$SSM_SERVICE_ROLE" \
+        --query "AutomationExecutionId" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+        --tags Key=Name,Value=cfn-gpu-rig-cli-ami-update)
+      #-----------------------------
+      if [[ $? -eq 0 ]]; then
+        echo "SSM Automation Execution Command ID ...........: $COMMAND_ID"
+        CHECK_STATUS=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
+            --query "AutomationExecutionMetadataList[].AutomationExecutionStatus" --profile "$AWS_PROFILE" --region "$AWS_REGION")
+        echo "SSM Automation Execution Status ...............: $CHECK_STATUS"
+        while [[ $CHECK_STATUS == "InProgress" ]]
+        do
+            printf '.'
+            sleep 10
+            CHECK_STATUS=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
+            --query "AutomationExecutionMetadataList[].AutomationExecutionStatus" --profile "$AWS_PROFILE" --region "$AWS_REGION")
+        done
+        printf '\n'
+        [[ $CHECK_STATUS == "Failed" ]] && { echo "SSM Failed to Execute Auto Update AMI .........: $COMMAND_ID"; exit 1; } \
+        || { echo "SSM Automation Execution Status ...............: $CHECK_STATUS"; }
+      fi
+      #-----------------------------
+      # Grab the resultant UpdateWindowsAmi AMI ID
+      if [[ $CHECK_STATUS == "Success" ]]; then
+        AMI_UPDATE=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
+          --query 'AutomationExecutionMetadataList[].Outputs.["CreateImage.ImageId"]' --profile "$AWS_PROFILE" --region "$AWS_REGION")
+        echo "SSM Automation Updated AMI ....................: $AMI_UPDATE"
+        #-----------------------------
+        # Give AMI a Name Tag
+        aws ec2 create-tags --resources "$AMI_UPDATE" --tags Key=Name,Value="${PROJECT_NAME}-ssm-update" \
+          --profile "$AWS_PROFILE" --region "$AWS_REGION"
+        #.............................
+        AMI_LATEST="$AMI_UPDATE"
+      else 
+        echo "SSM Automation Update NOT Successful ..........: $CHECK_STATUS"
+        exit 1
+      fi
+      #.............................
+
+    break
+  #-----------------------------
+  else
+    # Input not understood. Try again.
+    echo "A Valid AMI was not found, try again ..........: $USER_INPUT"
+  fi
+done
+#.............................
+
+
+
 
 #----------------------------------------------
 # Create S3 Bucket Policies from local templates
@@ -413,13 +499,13 @@ STACK_ID=$(aws cloudformation create-stack --stack-name "$STACK_NAME" --paramete
 if [[ $? -eq 0 ]]; then
   # Wait for stack creation to complete
   echo "Cloudformation Stack Creation In Progress .....: $STACK_ID"
-  CREATE_STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
-  while [[ $CREATE_STACK_STATUS == "REVIEW_IN_PROGRESS" ]] || [[ $CREATE_STACK_STATUS == "CREATE_IN_PROGRESS" ]]
+  CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+  while [[ $CHECK_STATUS == "REVIEW_IN_PROGRESS" ]] || [[ $CHECK_STATUS == "CREATE_IN_PROGRESS" ]]
   do
       # Wait 1 seconds and then check stack status again
       sleep 2
       printf '.'
-      CREATE_STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+      CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
   done
   printf '\n'
 fi
@@ -631,13 +717,13 @@ aws cloudformation update-stack --stack-name "$STACK_ID" --parameters \
 if [[ $? -eq 0 ]]; then
   # Wait for stack creation to complete
   echo "Cloudformation Stack Update In Progress .......: $STACK_ID"
-  CREATE_STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
-  while [[ $CREATE_STACK_STATUS == "UPDATE_IN_PROGRESS" ]] || [[ $CREATE_STACK_STATUS == "CREATE_IN_PROGRESS" ]]
+  CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+  while [[ $CHECK_STATUS == "UPDATE_IN_PROGRESS" ]] || [[ $CHECK_STATUS == "CREATE_IN_PROGRESS" ]]
   do
       # Wait 1 seconds and then check stack status again
       sleep 1
       printf '.'
-      CREATE_STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+      CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
   done
   printf '\n'
 fi

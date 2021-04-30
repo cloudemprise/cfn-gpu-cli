@@ -90,6 +90,20 @@ Resources:
           #HttpTokens: "required"
         #  HttpTokens: "optional"
         #  HttpPutResponseHopLimit: 1
+        # .............................
+        UserData:
+          Fn::Base64: |
+            version: 1.0
+            tasks:
+            - task: executeScript
+              inputs:
+              - frequency: always
+                type: powershell
+                runAs: localSystem
+                content: |-
+                  New-Item -Path 'C:\PowerShellTest.txt' -ItemType File
+                  Set-Content 'C:\PowerShellTest.txt' "hello world"
+        # .............................
 
 # ==========================================
 # Outputs: {}

@@ -126,7 +126,8 @@ Resources:
             - !Ref PublicSgResourceId
       # .............................
       #UserData:
-      #  Fn::Base64:
+      #  Fn::Base64: |
+      # .............................
       #      <powershell>
       #          Copy-S3Object -BucketName depot.ce-windows -KeyPrefix shared -LocalFolder "C:\Users\Administrator\Downloads" -Region eu-central-1
       #          Start-Process msiexec.exe -Wait -ArgumentList '/I C:\Users\Administrator\Downloads\awscli\AWSCLIV2.msi /passive'

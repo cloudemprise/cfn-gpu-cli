@@ -24,7 +24,7 @@ do
   # -p : prompt on stderr
   # -i : use default buffer val
   read -er -i "$AWS_PROFILE" -p "Enter Project AWS CLI Named Profile ...........: " USER_INPUT
-  if aws configure list-profiles 2>/dev/null | fgrep -qw "$USER_INPUT"
+  if aws configure list-profiles 2>/dev/null | grep -qw -- "$USER_INPUT"
   then
     echo "Project AWS CLI Named Profile is valid ........: $USER_INPUT"
     AWS_PROFILE=$USER_INPUT
@@ -45,7 +45,7 @@ do
   # -p : prompt on stderr
   # -i : use default buffer val
   read -er -i "$AWS_REGION" -p "Enter Project AWS CLI Region ..................: " USER_INPUT
-  if aws ec2 describe-regions --profile "$AWS_PROFILE" --query 'Regions[].RegionName' --output text 2>/dev/null | fgrep -qw "$USER_INPUT"
+  if aws ec2 describe-regions --profile "$AWS_PROFILE" --query 'Regions[].RegionName' --output text 2>/dev/null | grep -qw -- "$USER_INPUT"
   then
     echo "Project AWS CLI Region is valid ...............: $USER_INPUT"
     AWS_REGION=$USER_INPUT
@@ -61,7 +61,7 @@ done
 #-----------------------------
 # Delete Instance Profile
 ROLE_NAME="cfn-gpu-rig-cli-lt-iam-ec2-eu-central-1"
-if (aws iam get-instance-profile --instance-profile-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null)
+if (aws iam get-instance-profile --instance-profile-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null 2>&1)
 then
   # Detach/Delete Role Policies from Role
   aws iam detach-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
@@ -91,7 +91,7 @@ fi
 #-----------------------------
 # Delete Instance Profile
 ROLE_NAME="cfn-gpu-rig-cli-priv-iam-ec2-eu-central-1"
-if (aws iam get-instance-profile --instance-profile-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null)
+if (aws iam get-instance-profile --instance-profile-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null 2>&1)
 then
   # Detach/Delete Role Policies from Role
   aws iam delete-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
@@ -121,7 +121,7 @@ fi
 #-----------------------------
 # Delete Instance Profile
 ROLE_NAME="cfn-gpu-rig-cli-pub-iam-ec2-eu-central-1"
-if (aws iam get-instance-profile --instance-profile-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null)
+if (aws iam get-instance-profile --instance-profile-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null 2>&1)
 then
   # Detach/Delete Role Policies from Role
   aws iam delete-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
@@ -151,13 +151,19 @@ fi
 #-----------------------------
 # Delete Project Bucket 
 BUCKET_NAME="s3://proj-cfn-gpu-rig-cli"
-if (aws s3 ls "$BUCKET_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null)
+if (aws s3 ls "$BUCKET_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null 2>&1)
 then
-  # Detach/Delete Role Policies from Role
-  aws s3 rb --force "$BUCKET_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-  echo "Project Bucket Deleted ........................: $ROLE_NAME"
+  # Delete Project Bucket
+  echo "Project Bucket Deletion in Progress ...........: $BUCKET_NAME"
+  aws s3 rb --force "$BUCKET_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null 2>&1
+  if [[ $? -eq 0 ]]; then
+    echo "Project Bucket Deletion Success ...............: $BUCKET_NAME"
+  else
+    echo "Project Bucket Deletion Failed ................: $BUCKET_NAME"
+    #exit 1
+  fi
 else
-  echo "Failed to find Project Bucket .................: $ROLE_NAME"
+  echo "Failed to find Project Bucket .................: $BUCKET_NAME"
   #exit 1
 fi
 #.............................
@@ -166,17 +172,15 @@ fi
 
 #-----------------------------
 # Delete Project AMI  
-AMI_NAME="cfn-gpu-rig-cli-gaming-pub"
-if (aws ec2 describe-images --filters Name=name,Values=cfn-gpu-rig-cli-gaming-pub \
-    --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null)
+AMI_NAME="cfn-gpu-rig-cli-gpu-build"
+AMI_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} --owners self --output text \
+  --query 'Images[].ImageId' --profile "$AWS_PROFILE" --region "$AWS_REGION" 2> /dev/null)
+if [[ "$AMI_ID" != "" ]]
 then
-  # Get AMI ID
-  AMI_ID=$(aws ec2 describe-images --filters Name=name,Values=cfn-gpu-rig-cli-gaming-pub \
-            --output text --query 'Images[].ImageId' --profile "$AWS_PROFILE" --region "$AWS_REGION")
   echo "AMI Found .....................................: $AMI_ID"
   # Get Snapshot ID
-  SNAPSHOT_ID=$(aws ec2 describe-images --filters Name=name,Values=cfn-gpu-rig-cli-gaming-pub \
-                --output text --query 'Images[].BlockDeviceMappings[].Ebs.SnapshotId'         \
+  SNAPSHOT_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} \
+                --output text --query 'Images[].BlockDeviceMappings[].Ebs.SnapshotId' \
                 --profile "$AWS_PROFILE" --region "$AWS_REGION")
   echo "Snapshot Found ................................: $SNAPSHOT_ID"
   # Deregister AMI
@@ -187,7 +191,7 @@ then
 
   echo "Snapshot Deleted ..............................: OK"
 else
-  echo "Failed to find Project AMI ....................: $ROLE_NAME"
+  echo "Failed to find Project AMI ....................: $AMI_NAME"
   #exit 1
 fi
 #.............................
@@ -198,7 +202,7 @@ fi
 # Delete Project Bucket 
 STACK_NAME="cfn-gpu-rig-cli-stack"
 if (aws cloudformation describe-stacks --stack-name "$STACK_NAME" --profile "$AWS_PROFILE" \
-    --region "$AWS_REGION" > /dev/null)
+    --region "$AWS_REGION" > /dev/null 2>&1)
 then
   # Detach/Delete Role Policies from Role
   aws cloudformation delete-stack --stack-name "$STACK_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION"
