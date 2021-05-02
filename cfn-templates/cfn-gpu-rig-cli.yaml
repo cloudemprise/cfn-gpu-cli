@@ -117,8 +117,8 @@ Resources:
       Parameters:
         ProjectName:
           !Ref ProjectName
-        BuildStep:
-          !Ref BuildStep
+        #BuildStep:
+        #  !Ref BuildStep
       TimeoutInMinutes: 5
 
 

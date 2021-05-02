@@ -46,18 +46,18 @@ Parameters:
 
   # ------------------------------------------
   # --- Stack Build Stage Indicator
-  BuildStep:
-    Description: "Specify the Stage of the Build"
-    Type: String
-    Default: "stage1"
+  #BuildStep:
+  #  Description: "Specify the Stage of the Build"
+  #  Type: String
+  #  Default: "stage1"
 
 
 # ==========================================
-# Conditions: {}
-Conditions:
-  CreateResourcesStage1: !Equals [ !Ref BuildStep, "stage1"]
-  CreateResourcesStage2: !Equals [!Ref BuildStep, "stage2"]
-  CreateResourcesStage3: !Equals [!Ref BuildStep, "stage3"]
+Conditions: {}
+#Conditions:
+#  CreateResourcesStage1: !Equals [ !Ref BuildStep, "stage1"]
+#  CreateResourcesStage2: !Equals [!Ref BuildStep, "stage2"]
+#  CreateResourcesStage3: !Equals [!Ref BuildStep, "stage3"]
 
 
 # ==========================================

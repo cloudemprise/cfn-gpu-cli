@@ -206,10 +206,12 @@ do
       #SSM_SERVICE_ROLE="arn:aws:iam::${AWS_ACC_ID}:role/AutomationServiceRole"
       SSM_SERVICE_ROLE="arn:aws:iam::311674589786:role/role.ssm-automation.eu-central-1"
       #-----------------------------
-      COMMAND_ID=$(aws ssm start-automation-execution --document-name="$SSM_AUTO_DOC" --output text --parameters \
-        SourceAmiId="$AMI_LATEST",IamInstanceProfileName="$EC2_PROFILE",AutomationAssumeRole="$SSM_SERVICE_ROLE" \
-        --query "AutomationExecutionId" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-        --tags Key=Name,Value=cfn-gpu-rig-cli-ami-update)
+      COMMAND_ID=$(aws ssm start-automation-execution --document-name="$SSM_AUTO_DOC" --query 'AutomationExecutionId' --output text \
+        --profile "$AWS_PROFILE" --region "$AWS_REGION" --tags Key=Project,Value="${PROJECT_NAME}" \
+        --parameters "SourceAmiId=$AMI_LATEST,IamInstanceProfileName=$EC2_PROFILE,AutomationAssumeRole=$SSM_SERVICE_ROLE,\
+          TargetAmiName=${PROJECT_NAME}-ssm-update,InstanceType=t2.micro,\
+          PreUpdateScript='Copy-S3Object -BucketName depot.ce-windows -KeyPrefix shared -LocalFolder C:\Users\Administrator\Downloads -Region eu-central-1',\
+          PostUpdateScript='C:\Users\Administrator\Downloads\ssm\cfn-gpu-rig-cli-postupdate.ps1'")
       #-----------------------------
       if [[ $? -eq 0 ]]; then
         echo "SSM Automation Execution Command ID ...........: $COMMAND_ID"
@@ -253,7 +255,6 @@ do
   fi
 done
 #.............................
-
 
 
 
@@ -477,7 +478,7 @@ fi
 #-----------------------------
 # Stage1 Stack Creation Code Block
 BUILD_COUNTER="stage1"
-TEMPLATE_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/cfn-templates/${PROJECT_NAME}.yaml"
+TEMPLATE_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli.yaml"
 STACK_POLICY_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/policies/cfn-stacks/${PROJECT_NAME}-${BUILD_COUNTER}-cfn-stack-policy.json"
 
 echo "Cloudformation Stack Creation Initiated .......: $TEMPLATE_URL"
@@ -597,6 +598,12 @@ echo "$INSTANCE_PUB_PASSWD" > /tmp/password
 #.............................
 
 
+
+#!! COMMENT Construct Begins Here:
+: <<'END'
+#!! COMMENT BEGIN
+
+
 #-----------------------------
 # Update SSM Agent 
 echo "Update SSM Agent on Instance ..................: $INSTANCE_PUB_ID"
@@ -637,6 +644,11 @@ else
   exit 1
 fi
 #-----------------------------
+
+
+#!! COMMENT END
+END
+#!! COMMENT Construct Ends Here:
 
 
 
