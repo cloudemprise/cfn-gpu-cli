@@ -96,8 +96,10 @@ then
   # Detach/Delete Role Policies from Role
   aws iam delete-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
     --policy-name cfn-gpu-rig-cli-priv-ec2-s3-eu-central-1
-  aws iam delete-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-    --policy-name cfn-gpu-rig-cli-priv-ec2-ssm-eu-central-1
+  #aws iam delete-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  #  --policy-name cfn-gpu-rig-cli-priv-ec2-ssm-eu-central-1
+  aws iam detach-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+    --policy-arn arn:aws:iam::aws:policy/PowerUserAccess
   echo "Role Polices Removed ..........................: OK"
   #...
   # Remove Role from Instance Profile
@@ -192,6 +194,33 @@ then
   echo "Snapshot Deleted ..............................: OK"
 else
   echo "Failed to find Project AMI ....................: $AMI_NAME"
+  #exit 1
+fi
+#.............................
+
+
+#-----------------------------
+# Delete SSM Update AMI  
+AMI_NAME="cfn-gpu-rig-cli-ssm-update"
+AMI_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} --owners self --output text \
+  --query 'Images[].ImageId' --profile "$AWS_PROFILE" --region "$AWS_REGION" 2> /dev/null)
+if [[ "$AMI_ID" != "" ]]
+then
+  echo "AMI Found .....................................: $AMI_ID"
+  # Get Snapshot ID
+  SNAPSHOT_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} \
+                --output text --query 'Images[].BlockDeviceMappings[].Ebs.SnapshotId' \
+                --profile "$AWS_PROFILE" --region "$AWS_REGION")
+  echo "Snapshot Found ................................: $SNAPSHOT_ID"
+  # Deregister AMI
+  aws ec2 deregister-image --image-id "$AMI_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+  echo "AMI Deregistred ...............................: OK"
+  # Snapshot Deleted
+  aws ec2 delete-snapshot --snapshot-id "$SNAPSHOT_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+
+  echo "Snapshot Deleted ..............................: OK"
+else
+  echo "Failed to find SSM update AMI .................: $AMI_NAME"
   #exit 1
 fi
 #.............................

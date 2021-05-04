@@ -172,92 +172,6 @@ echo "The lastest AMI ...............................: $AMI_LATEST"
 #.............................
 
 
-
-
-#-----------------------------
-# Check if SSM UpdateWindowsAmi is required
-# USER_INPUT=valid AMI_ID bypass SSM UpdateWindowsAmi
-# USER_INPUT=Execute to perform UpdateWindowsAmi 
-AMI_UPDATE="Execute"
-while true
-do
-  # -e : stdin from terminal
-  # -r : backslash not an escape character
-  # -p : prompt on stderr
-  # -i : use default buffer val
-  read -er -i "$AMI_UPDATE" -p "Enter PreUpdated SSM AMI ID or Execute ........: " USER_INPUT
-  #-----------------------------
-  if aws ec2 describe-images --owners self --query 'Images[].ImageId' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION" 2>/dev/null | grep -qw -- "$USER_INPUT"
-  then
-    # A valid AMI ID was found. SSM UpdateWindowsAmi not needed
-    AMI_UPDATE="$USER_INPUT"
-    echo "PreUpdated SSM AMI ID is valid ................: $AMI_UPDATE"
-    AMI_LATEST="$AMI_UPDATE"
-    break
-  #-----------------------------
-  elif [[ "$USER_INPUT" == "$AMI_UPDATE" ]]; then
-    # Execute SSM UpdateWindowsAmi Document
-    echo "Will now perform SSM Update on the Latest AMI .: $AMI_LATEST"
-
-      #-----------------------------
-      # Execute Automation Document to Update AMI
-      SSM_AUTO_DOC="AWS-UpdateWindowsAmi"
-      EC2_PROFILE="role.ec2-usr-pwr"
-      #SSM_SERVICE_ROLE="arn:aws:iam::${AWS_ACC_ID}:role/AutomationServiceRole"
-      SSM_SERVICE_ROLE="arn:aws:iam::311674589786:role/role.ssm-automation.eu-central-1"
-      #-----------------------------
-      COMMAND_ID=$(aws ssm start-automation-execution --document-name="$SSM_AUTO_DOC" --query 'AutomationExecutionId' --output text \
-        --profile "$AWS_PROFILE" --region "$AWS_REGION" --tags Key=Project,Value="${PROJECT_NAME}" \
-        --parameters "SourceAmiId=$AMI_LATEST,IamInstanceProfileName=$EC2_PROFILE,AutomationAssumeRole=$SSM_SERVICE_ROLE,\
-          TargetAmiName=${PROJECT_NAME}-ssm-update,InstanceType=t2.micro,\
-          PreUpdateScript='Copy-S3Object -BucketName depot.ce-windows -KeyPrefix shared -LocalFolder C:\Users\Administrator\Downloads -Region eu-central-1',\
-          PostUpdateScript='C:\Users\Administrator\Downloads\ssm\cfn-gpu-rig-cli-postupdate.ps1'")
-      #-----------------------------
-      if [[ $? -eq 0 ]]; then
-        echo "SSM Automation Execution Command ID ...........: $COMMAND_ID"
-        CHECK_STATUS=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
-            --query "AutomationExecutionMetadataList[].AutomationExecutionStatus" --profile "$AWS_PROFILE" --region "$AWS_REGION")
-        echo "SSM Automation Execution Status ...............: $CHECK_STATUS"
-        while [[ $CHECK_STATUS == "InProgress" ]]
-        do
-            printf '.'
-            sleep 10
-            CHECK_STATUS=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
-            --query "AutomationExecutionMetadataList[].AutomationExecutionStatus" --profile "$AWS_PROFILE" --region "$AWS_REGION")
-        done
-        printf '\n'
-        [[ $CHECK_STATUS == "Failed" ]] && { echo "SSM Failed to Execute Auto Update AMI .........: $COMMAND_ID"; exit 1; } \
-        || { echo "SSM Automation Execution Status ...............: $CHECK_STATUS"; }
-      fi
-      #-----------------------------
-      # Grab the resultant UpdateWindowsAmi AMI ID
-      if [[ $CHECK_STATUS == "Success" ]]; then
-        AMI_UPDATE=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
-          --query 'AutomationExecutionMetadataList[].Outputs.["CreateImage.ImageId"]' --profile "$AWS_PROFILE" --region "$AWS_REGION")
-        echo "SSM Automation Updated AMI ....................: $AMI_UPDATE"
-        #-----------------------------
-        # Give AMI a Name Tag
-        aws ec2 create-tags --resources "$AMI_UPDATE" --tags Key=Name,Value="${PROJECT_NAME}-ssm-update" \
-          --profile "$AWS_PROFILE" --region "$AWS_REGION"
-        #.............................
-        AMI_LATEST="$AMI_UPDATE"
-      else 
-        echo "SSM Automation Update NOT Successful ..........: $CHECK_STATUS"
-        exit 1
-      fi
-      #.............................
-
-    break
-  #-----------------------------
-  else
-    # Input not understood. Try again.
-    echo "A Valid AMI was not found, try again ..........: $USER_INPUT"
-  fi
-done
-#.............................
-
-
-
 #----------------------------------------------
 # Create S3 Bucket Policies from local templates
 find -L ./policies/s3-buckets/template-proj* -type f -print0 |
@@ -317,6 +231,59 @@ find -L ./policies/ec2-role/template* -type f -print0 |
   done
 #.............................
 
+
+
+
+
+
+
+#----------------------------------------------
+# Create SSM inline PassRole Policies from local templates
+find -L ./policies/ssm/template* -type f -print0 |
+# -L : Follow symbolic links
+  while IFS= read -r -d '' TEMPLATE
+  do
+    if [[ ! -s "$TEMPLATE" ]]; then
+      echo "Invalid Template SSM Policy ...................: $TEMPLATE"
+      exit 1
+    else
+      # Copy/Rename template via parameter expansion
+      cp "$TEMPLATE" "${TEMPLATE//template/$PROJECT_NAME}"
+      # Replace appropriate variables
+      sed -i "s/ProjectName/$PROJECT_NAME/" "$_"
+      echo "Creating SSM inline PassRole Policy ...........: $_"
+    fi
+  done
+#.............................
+
+#----------------------------------------------
+# Create Project SSM Powershell Script
+find -L ./ssm/template* -type f -print0 |
+# -L : Follow symbolic links
+  while IFS= read -r -d '' TEMPLATE
+  do
+    if [[ ! -s "$TEMPLATE" ]]; then
+      echo "Invalid Template SSM Powershell Script ........: $TEMPLATE"
+      exit 1
+    else
+      # Copy/Rename template via parameter expansion
+      cp "$TEMPLATE" "${TEMPLATE//template/$PROJECT_NAME}"
+      # Replace appropriate variables
+      #sed -i "s/ProjectBucket/$PROJECT_BUCKET/" "$_"
+      #sed -i "s/ProjectName/$PROJECT_NAME/" "$_"
+      #sed -i "s/Region/$AWS_REGION/" "$_"
+      echo "Creating SSM Powershell Script ................: $_"
+    fi
+  done
+#.............................
+
+
+
+
+
+
+
+
 #-----------------------------
 # Stringify json Resource Inline Policies for awscli command input
 ASSUME_ROLE_POLICY=$(tr -d " \t\n\r" < ./policies/ec2-role/assume-role-policy.json)
@@ -362,15 +329,21 @@ for PREFIX in PRIV PUB LT; do
   EC2_ROLE_SSM_NAME="${PROJECT_NAME}"-"${PREFIX,,}"-ec2-ssm-"${AWS_REGION}"
   EC2_ROLE_S3_NAME="${PROJECT_NAME}"-"${PREFIX,,}"-ec2-s3-"${AWS_REGION}"
   if [[ $PREFIX == "PRIV" ]]; then
-      aws iam put-role-policy --role-name "${!VAR_NAME}"  \
-          --policy-name "$EC2_ROLE_SSM_NAME"              \
-          --policy-document "$PRIV_SSM_EC2_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      echo "The IAM Role is affixed with SSM Access Policy : ${EC2_ROLE_SSM_NAME}"
+      #aws iam put-role-policy --role-name "${!VAR_NAME}"  \
+      #    --policy-name "$EC2_ROLE_SSM_NAME"              \
+      #    --policy-document "$PRIV_SSM_EC2_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      #echo "The IAM Role is affixed with SSM Access Policy : ${EC2_ROLE_SSM_NAME}"
       # ...
       aws iam put-role-policy --role-name "${!VAR_NAME}"  \
           --policy-name "$EC2_ROLE_S3_NAME"               \
           --policy-document "$PRIV_S3_EC2_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
       echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_NAME}"
+      # ...
+      # Managed Policy PowerUser
+      EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/PowerUserAccess"
+      aws iam attach-role-policy --role-name "${!VAR_NAME}" \
+        --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
   elif [[ $PREFIX == "PUB" ]]; then
       aws iam put-role-policy --role-name "${!VAR_NAME}"  \
           --policy-name "$EC2_ROLE_S3_NAME"               \
@@ -382,11 +355,11 @@ for PREFIX in PRIV PUB LT; do
           --policy-document "$LT_S3_EC2_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
       echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_NAME}"
       # ...
-      # Cloudwatch Agent Managed Policy
-      EC2_ROLE_CW_ARN="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+      # Managed Policy Cloudwatch Agent
+      EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
       aws iam attach-role-policy --role-name "${!VAR_NAME}" \
-        --policy-arn "$EC2_ROLE_CW_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_CW_ARN}"
+        --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
   fi
 done
 #.............................
@@ -472,6 +445,128 @@ else
   rm ./logs/${PROJECT_NAME}*.tar
 fi
 #.............................
+
+#----------------------------------------------
+# Upload SSM Powershell Script to S3
+find ./ssm -type f -name "${PROJECT_NAME}*.ps1" ! -path "*/scratch/*" -print0 |
+  while IFS= read -r -d '' FILE
+  do
+    if [[ ! -s "$FILE" ]]; then
+      echo "Error! Invalid SSM Powershell Script ..........: $FILE"
+      exit 1
+    elif (aws s3 mv "$FILE" "s3://$PROJECT_BUCKET${FILE#.}" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null); then
+      echo "Uploading SSM Powershell Script to S3 Location : s3://$PROJECT_BUCKET${FILE#.}"
+    else continue
+    fi
+  done
+#.............................
+
+
+
+#-----------------------------
+# Check if SSM UpdateWindowsAmi is required
+# USER_INPUT=valid AMI_ID bypass SSM UpdateWindowsAmi
+# USER_INPUT=Execute to perform UpdateWindowsAmi 
+AMI_UPDATE="Execute"
+while true
+do
+  # -e : stdin from terminal
+  # -r : backslash not an escape character
+  # -p : prompt on stderr
+  # -i : use default buffer val
+  read -er -i "$AMI_UPDATE" -p "Enter PreUpdated SSM AMI ID or Execute ........: " USER_INPUT
+  #-----------------------------
+  if aws ec2 describe-images --owners self --query 'Images[].ImageId' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION" 2>/dev/null | grep -qw -- "$USER_INPUT"
+  then
+    # A valid AMI ID was found. SSM UpdateWindowsAmi not needed
+    AMI_UPDATE="$USER_INPUT"
+    echo "PreUpdated SSM AMI ID is valid ................: $AMI_UPDATE"
+    AMI_LATEST="$AMI_UPDATE"
+    break
+  #-----------------------------
+  elif [[ "$USER_INPUT" == "$AMI_UPDATE" ]]; then
+    # Execute SSM UpdateWindowsAmi Document
+    echo "Will now perform SSM Update on the Latest AMI .: $AMI_LATEST"
+
+      #-----------------------------
+      # Execute Automation Document to Update AMI
+      SSM_AUTO_DOC="AWS-UpdateWindowsAmi"
+      SSM_AUTO_EC2="t2.micro"
+      #---
+      #EC2_PROFILE="role.ec2-usr-pwr"
+      #EC2_PROFILE="role.ec2-usr-pwr"
+      EC2_PROFILE="cfn-gpu-rig-cli-priv-iam-ec2-eu-central-1"
+      #EC2_PROFILE="${PROJECT_NAME}-priv-iam-ec2-${AWS_REGION}"
+      #---
+      #SSM_SERVICE_ROLE="arn:aws:iam::${AWS_ACC_ID}:role/AutomationServiceRole"
+      #SSM_SERVICE_ROLE="arn:aws:iam::311674589786:role/role.ssm-automation.eu-central-1"
+      SSM_SERVICE_ROLE="arn:aws:iam::311674589786:role/role.cfn-gpu-rig-cli-ssm-automation-eu-central-1"
+      #---
+      PRE_UPDATE="Copy-S3Object -BucketName $PROJECT_BUCKET -KeyPrefix ssm -LocalFolder C:\\$PROJECT_BUCKET"
+      #PRE_UPDATE='Copy-S3Object -BucketName proj-cfn-gpu-rig-cli -KeyPrefix ssm -LocalFolder C:\proj-cfn-gpu-rig-cli -Region eu-central-1'
+      #PRE_UPDATE='Copy-S3Object -BucketName '${PROJECT_BUCKET}' -KeyPrefix ssm -LocalFolder C:\'${PROJECT_NAME}' -Region '${AWS_REGION}
+      #PRE_UPDATE="Copy-S3Object -BucketName depot.ce-windows -KeyPrefix ssm -LocalFolder C:\\${PROJECT_NAME} -Region $AWS_REGION"
+      #---
+      POST_UPDATE="C:\\$PROJECT_BUCKET\\$PROJECT_NAME-postupdate.ps1"
+      #POST_UPDATE='C:\'${PROJECT_BUCKET}'\'${PROJECT_NAME}'-postupdate.ps1'
+      #POST_UPDATE="C:\\$PROJECT_BUCKET\\$PROJECT_NAME-postupdate.ps1"
+      #POST_UPDATE="C:\\${PROJECT_BUCKET}\\${PROJECT_NAME}-postupdate.ps1"
+      #POST_UPDATE='C:\proj-cfn-gpu-rig-cli\cfn-gpu-rig-cli-postupdate.ps1'
+      #---
+      #-----------------------------
+      COMMAND_ID=$(aws ssm start-automation-execution --document-name="$SSM_AUTO_DOC" --query 'AutomationExecutionId' --output text \
+        --profile "$AWS_PROFILE" --region "$AWS_REGION" --tags Key=Project,Value="${PROJECT_NAME}" \
+        --parameters "SourceAmiId=$AMI_LATEST,IamInstanceProfileName=$EC2_PROFILE,AutomationAssumeRole=$SSM_SERVICE_ROLE,\
+          TargetAmiName=${PROJECT_NAME}-ssm-update,PreUpdateScript=$PRE_UPDATE,PostUpdateScript=$POST_UPDATE,\
+          InstanceType=$SSM_AUTO_EC2")
+      #-----------------------------
+      if [[ $? -eq 0 ]]; then
+        echo "SSM Automation Execution Command ID ...........: $COMMAND_ID"
+        CHECK_STATUS=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
+            --query "AutomationExecutionMetadataList[].AutomationExecutionStatus" --profile "$AWS_PROFILE" --region "$AWS_REGION")
+        echo "SSM Automation Execution Status ...............: $CHECK_STATUS"
+        while [[ $CHECK_STATUS == "InProgress" ]]
+        do
+            printf '.'
+            sleep 10
+            CHECK_STATUS=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
+            --query "AutomationExecutionMetadataList[].AutomationExecutionStatus" --profile "$AWS_PROFILE" --region "$AWS_REGION")
+        done
+        printf '\n'
+        [[ $CHECK_STATUS == "Failed" ]] && { echo "SSM Failed to Execute Auto Update AMI .........: $COMMAND_ID"; exit 1; } \
+        || { echo "SSM Automation Execution Status ...............: $CHECK_STATUS"; }
+      fi
+      #-----------------------------
+      # Grab the resultant UpdateWindowsAmi AMI ID
+      if [[ $CHECK_STATUS == "Success" ]]; then
+        AMI_UPDATE=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
+          --query 'AutomationExecutionMetadataList[].Outputs.["CreateImage.ImageId"]' --profile "$AWS_PROFILE" --region "$AWS_REGION")
+        echo "SSM Automation Updated AMI ....................: $AMI_UPDATE"
+        #-----------------------------
+        # Give AMI a Name Tag
+        aws ec2 create-tags --resources "$AMI_UPDATE" --tags Key=Name,Value="${PROJECT_NAME}-ssm-update" \
+          --profile "$AWS_PROFILE" --region "$AWS_REGION"
+        #.............................
+        AMI_LATEST="$AMI_UPDATE"
+      else 
+        echo "SSM Automation Update NOT Successful ..........: $CHECK_STATUS"
+        exit 1
+      fi
+      #.............................
+
+    break
+  #-----------------------------
+  else
+    # Input not understood. Try again.
+    echo "A Valid AMI was not found, try again ..........: $USER_INPUT"
+  fi
+done
+#.............................
+
+
+
+
+
 
 
 #-----------------------------
