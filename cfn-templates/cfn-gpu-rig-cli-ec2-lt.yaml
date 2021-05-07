@@ -72,9 +72,9 @@ Resources:
           - !Ref PublicSgResourceId
         # .............................
         IamInstanceProfile:
-          Name: "role.ec2-usr-pwr"
+          #Name: "role.ec2-usr-pwr"
           #Name: "role.ec2-usr-datascience.eu-central-1"
-          #Name: !Sub "${ProjectName}-lt-iam-ec2-${AWS::Region}"
+          Name: !Sub "${ProjectName}-ec2-lt-${AWS::Region}"
         # .............................
         InstanceMarketOptions: 
           MarketType: "spot"

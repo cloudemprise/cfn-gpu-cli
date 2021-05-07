@@ -6,7 +6,7 @@
             "Effect": "Allow",
             "Action": "iam:PassRole",
             "Resource": [
-                "arn:aws:iam::311674589786:role/ProjectName*"
+                "arn:aws:iam::311674589786:role/ce/ProjectName*"
             ]
         }
     ]

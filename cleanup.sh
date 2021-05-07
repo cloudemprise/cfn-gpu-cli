@@ -56,97 +56,76 @@ do
 done
 #.............................
 
+#-----------------------------
+# Request Project Name
+PROJECT_NAME="cfn-gpu-rig-cli"
+while true
+do
+  # -e : stdin from terminal
+  # -r : backslash not an escape character
+  # -p : prompt on stderr
+  # -i : use default buffer val
+  read -er -i "$PROJECT_NAME" -p "Enter the Name of this Project ................: " USER_INPUT
+  if [[ "${USER_INPUT:=$PROJECT_NAME}" =~ (^[a-z0-9]([a-z0-9-]*(\.[a-z0-9])?)*$) ]]
+  then
+    echo "Project Name is valid .........................: $USER_INPUT"
+    PROJECT_NAME=$USER_INPUT
+    # Doc Store for this project
+    PROJECT_BUCKET="proj-${PROJECT_NAME}"
+    break
+  else
+    echo "Error! Project Name must be S3 Compatible .....: $USER_INPUT"
+  fi
+done
+#.............................
+
 #---
 
 #-----------------------------
-# Delete Instance Profile
-ROLE_NAME="cfn-gpu-rig-cli-lt-iam-ec2-eu-central-1"
-if (aws iam get-instance-profile --instance-profile-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null 2>&1)
-then
-  # Detach/Delete Role Policies from Role
-  aws iam detach-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-    --policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
-  aws iam delete-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-    --policy-name cfn-gpu-rig-cli-lt-ec2-s3-eu-central-1
-  echo "Role Polices Removed ..........................: OK"
-  #...
-  # Remove Role from Instance Profile
-  aws iam remove-role-from-instance-profile --instance-profile-name "$ROLE_NAME" \
-    --profile "$AWS_PROFILE" --region "$AWS_REGION" --role-name "$ROLE_NAME"
-  echo "Roles Removed from Instance Profile ...........: $ROLE_NAME"
-  #...
-  # Delete Role
-  aws iam delete-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-  echo "Role Deleted ..................................: $ROLE_NAME"
-  #...
-  # Delete Instance Profile
-  aws iam delete-instance-profile --instance-profile-name "$ROLE_NAME"
-  echo "Instance Profle Deleted .......................: $ROLE_NAME"
-else
-  echo "Failed to find Instance Profile ...............: $ROLE_NAME"
-  #exit 1
-fi
-#.............................
-
+# Routine to Delete Instance Profiles & Roles
+# Roles must have the specified path prefix:
+# --path /ce/
 #-----------------------------
-# Delete Instance Profile
-ROLE_NAME="cfn-gpu-rig-cli-priv-iam-ec2-eu-central-1"
-if (aws iam get-instance-profile --instance-profile-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null 2>&1)
-then
-  # Detach/Delete Role Policies from Role
-  aws iam delete-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-    --policy-name cfn-gpu-rig-cli-priv-ec2-s3-eu-central-1
-  #aws iam delete-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-  #  --policy-name cfn-gpu-rig-cli-priv-ec2-ssm-eu-central-1
-  aws iam detach-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-    --policy-arn arn:aws:iam::aws:policy/PowerUserAccess
-  echo "Role Polices Removed ..........................: OK"
-  #...
-  # Remove Role from Instance Profile
-  aws iam remove-role-from-instance-profile --instance-profile-name "$ROLE_NAME" \
-    --profile "$AWS_PROFILE" --region "$AWS_REGION" --role-name "$ROLE_NAME"
-  echo "Roles Removed from Instance Profile ...........: $ROLE_NAME"
-  #...
-  # Delete Role
-  aws iam delete-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-  echo "Role Deleted ..................................: $ROLE_NAME"
-  #...
-  # Delete Instance Profile
-  aws iam delete-instance-profile --instance-profile-name "$ROLE_NAME"
-  echo "Instance Profle Deleted .......................: $ROLE_NAME"
-else
-  echo "Failed to find Instance Profile ...............: $ROLE_NAME"
-  #exit 1
-fi
-#.............................
-
+#-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o
+# Detach Roles & Delete Instance Profiles
+aws iam list-instance-profiles --query 'InstanceProfiles[].InstanceProfileName' --profile "$AWS_PROFILE" --region "$AWS_REGION" --output json \
+  | jq -r .[] | grep "$PROJECT_NAME" | while read -r INST_PROFILE
+do
+  # ___
+  aws iam remove-role-from-instance-profile --instance-profile-name "$INST_PROFILE" --role-name "$INST_PROFILE" \
+    --profile "$AWS_PROFILE" --region "$AWS_REGION"
+  echo "Role Removed from Instance Profile ............: $INST_PROFILE"
+  # ___
+  aws iam delete-instance-profile --instance-profile-name "$INST_PROFILE" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+  echo "Deleting Instance Profile .....................: $INST_PROFILE"
+done
 #-----------------------------
-# Delete Instance Profile
-ROLE_NAME="cfn-gpu-rig-cli-pub-iam-ec2-eu-central-1"
-if (aws iam get-instance-profile --instance-profile-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null 2>&1)
-then
-  # Detach/Delete Role Policies from Role
-  aws iam delete-role-policy --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-    --policy-name cfn-gpu-rig-cli-pub-ec2-s3-eu-central-1 
-  echo "Role Polices Removed ..........................: OK"
-  #...
-  # Remove Role from Instance Profile
-  aws iam remove-role-from-instance-profile --instance-profile-name "$ROLE_NAME" \
-    --profile "$AWS_PROFILE" --region "$AWS_REGION" --role-name "$ROLE_NAME"
-  echo "Roles Removed from Instance Profile ...........: $ROLE_NAME"
-  #...
-  # Delete Role
-  aws iam delete-role --role-name "$ROLE_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-  echo "Role Deleted ..................................: $ROLE_NAME"
-  #...
-  # Delete Instance Profile
-  aws iam delete-instance-profile --instance-profile-name "$ROLE_NAME"
-  echo "Instance Profle Deleted .......................: $ROLE_NAME"
-else
-  echo "Failed to find Instance Profile ...............: $ROLE_NAME"
-  #exit 1
-fi
-#.............................
+# Delete Roles 
+aws iam list-roles --path "/ce/" --query 'Roles[].RoleName' --profile "$AWS_PROFILE" --region "$AWS_REGION" --output json \
+  | jq -r .[] | grep "$PROJECT_NAME" | while read -r ROLES
+do
+  echo "Removing Policies from Role ...................: $ROLES"
+  # ___
+  aws iam list-role-policies --role-name $ROLES --profile "$AWS_PROFILE" --region "$AWS_REGION" --output json --query 'PolicyNames' \
+    | jq -r .[] | while read -r INLINE_POLICY
+  do
+    aws iam delete-role-policy --role-name "$ROLES" --policy-name "$INLINE_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+    echo "Inline Policy Deleted from Role ...............: $INLINE_POLICY"
+  done
+  # ___
+  aws iam list-attached-role-policies --role-name $ROLES --profile "$AWS_PROFILE" --region "$AWS_REGION" --output json \
+    --query 'AttachedPolicies[].PolicyArn' | jq -r .[] | while read -r MANAGED_POLICY
+  do
+  # ___
+    aws iam detach-role-policy --role-name "$ROLES" --policy-arn "$MANAGED_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+    echo "Removed Managed Policy from Role ..............: $MANAGED_POLICY"
+  done
+  # ___
+  aws iam delete-role --role-name "$ROLES" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+  echo "Role Deleted ..................................: $ROLES"
+done
+#-----------------------------
+#-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o
 
 #--- 
 
@@ -169,6 +148,25 @@ else
   #exit 1
 fi
 #.............................
+
+#--- 
+
+#-----------------------------
+# Delete Project Cloudformation Stack 
+STACK_NAME="cfn-gpu-rig-cli-stack"
+if (aws cloudformation describe-stacks --stack-name "$STACK_NAME" --profile "$AWS_PROFILE" \
+    --region "$AWS_REGION" > /dev/null 2>&1)
+then
+  # ___
+  aws cloudformation delete-stack --stack-name "$STACK_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+  echo "Project Stack Deleted .........................: $STACK_NAME"
+else
+  echo "Failed to find Project Stack ..................: $STACK_NAME"
+  #exit 1
+fi
+#.............................
+
+#---
 
 #---
 
@@ -198,7 +196,6 @@ else
 fi
 #.............................
 
-
 #-----------------------------
 # Delete SSM Update AMI  
 AMI_NAME="cfn-gpu-rig-cli-ssm-update"
@@ -224,22 +221,3 @@ else
   #exit 1
 fi
 #.............................
-
-#--- 
-
-#-----------------------------
-# Delete Project Bucket 
-STACK_NAME="cfn-gpu-rig-cli-stack"
-if (aws cloudformation describe-stacks --stack-name "$STACK_NAME" --profile "$AWS_PROFILE" \
-    --region "$AWS_REGION" > /dev/null 2>&1)
-then
-  # Detach/Delete Role Policies from Role
-  aws cloudformation delete-stack --stack-name "$STACK_NAME" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-  echo "Project Stack Deleted .........................: $STACK_NAME"
-else
-  echo "Failed to find Project Stack ..................: $STACK_NAME"
-  #exit 1
-fi
-#.............................
-
-#---

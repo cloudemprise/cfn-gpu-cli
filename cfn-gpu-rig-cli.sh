@@ -174,7 +174,7 @@ echo "The lastest AMI ...............................: $AMI_LATEST"
 
 #----------------------------------------------
 # Create S3 Bucket Policies from local templates
-find -L ./policies/s3-buckets/template-proj* -type f -print0 |
+find -L ./policies/s3/template* -type f -print0 |
   while IFS= read -r -d '' TEMPLATE
   do
     if [[ ! -s "$TEMPLATE" ]]; then
@@ -195,7 +195,7 @@ find -L ./policies/s3-buckets/template-proj* -type f -print0 |
 
 #----------------------------------------------
 # Create Cloudformation Stack Policies from local templates
-find -L ./policies/cfn-stacks/template* -type f -print0 |
+find -L ./policies/cfn/template* -type f -print0 |
 # -L : Follow symbolic links
   while IFS= read -r -d '' TEMPLATE
   do
@@ -212,7 +212,7 @@ find -L ./policies/cfn-stacks/template* -type f -print0 |
 
 #----------------------------------------------
 # Create IAM inline Resource Policies from local templates
-find -L ./policies/ec2-role/template* -type f -print0 |
+find -L ./policies/ec2/template* -type f -print0 |
 # -L : Follow symbolic links
   while IFS= read -r -d '' TEMPLATE
   do
@@ -226,16 +226,10 @@ find -L ./policies/ec2-role/template* -type f -print0 |
       sed -i "s/ProjectBucket/$PROJECT_BUCKET/" "$_"
       sed -i "s/ProjectName/$PROJECT_NAME/" "$_"
       sed -i "s/Region/$AWS_REGION/" "$_"
-      echo "Creating IAM inline Resource Policy ...........: $_"
+      echo "Creating EC2 Custom Policy ....................: $_"
     fi
   done
 #.............................
-
-
-
-
-
-
 
 #----------------------------------------------
 # Create SSM inline PassRole Policies from local templates
@@ -251,13 +245,13 @@ find -L ./policies/ssm/template* -type f -print0 |
       cp "$TEMPLATE" "${TEMPLATE//template/$PROJECT_NAME}"
       # Replace appropriate variables
       sed -i "s/ProjectName/$PROJECT_NAME/" "$_"
-      echo "Creating SSM inline PassRole Policy ...........: $_"
+      echo "Creating SSM Custom Policy ....................: $_"
     fi
   done
 #.............................
 
 #----------------------------------------------
-# Create Project SSM Powershell Script
+# Create Project SSM Powershell Script  from local templates
 find -L ./ssm/template* -type f -print0 |
 # -L : Follow symbolic links
   while IFS= read -r -d '' TEMPLATE
@@ -278,91 +272,152 @@ find -L ./ssm/template* -type f -print0 |
 #.............................
 
 
-
-
-
-
+#-----------------------------
+#-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o
+# Create SSM Automation Service Role
+# ___
+# Stringify Inline Policies
+SSM_TRUST_POLICY=$(tr -d " \t\n\r" < ./policies/ssm/${PROJECT_NAME}-policy-ssm-assume-role.json)
+SSM_PASSROLE_POLICY=$(tr -d " \t\n\r" < ./policies/ssm/${PROJECT_NAME}-policy-ssm-pass-role.json)
+# ___
+# --- Create SSM Automation Service Role
+SSM_API_ROLE_NAME="$PROJECT_NAME-ssm-automation-$AWS_REGION"
+echo "Creating SSM Automation Service Role ..........: $SSM_API_ROLE_NAME"
+SSM_API_ROLE_ID="$(aws iam create-role --role-name "$SSM_API_ROLE_NAME" \
+    --assume-role-policy-document "$SSM_TRUST_POLICY" --path "/ce/" \
+    --output text --query 'Role.RoleId' --profile "$AWS_PROFILE" --region "$AWS_REGION")"
+echo "The Service Role userid .......................: $SSM_API_ROLE_ID"
+# ___
+# Add new JSON element to S3 Project Bucket Policy for EC2 RoleId
+POLICY_DOC=$(find ./policies/s3/${PROJECT_NAME}* -type f)
+jq --arg var_role_id "$SSM_API_ROLE_ID:*" '.Statement[].Condition.StringNotLike[] += [ $var_role_id ]' < "${POLICY_DOC}" > "${POLICY_DOC}".tmp 
+mv "${POLICY_DOC}".tmp "$POLICY_DOC"
+# ___
+# Affix SSM Passrole Policy
+SSM_ROLE_POLICY_NAME="$PROJECT_NAME-ssm-automation-iam-passrole"
+aws iam put-role-policy --role-name "$SSM_API_ROLE_NAME"  \
+    --policy-name "$SSM_ROLE_POLICY_NAME"               \
+    --policy-document "$SSM_PASSROLE_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+echo "Service Role affixed with IAM Passrole Policy .: $SSM_ROLE_POLICY_NAME"
+# ___
+# Affix Managed Policy SSMAutomation Service Role
+SSM_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole"
+aws iam attach-role-policy --role-name "$SSM_API_ROLE_NAME" \
+  --policy-arn "$SSM_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+echo "Service Role affixed with Managed Policy ......: $SSM_ROLE_MANAGED_ARN"
+#-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o
+#.............................
 
 
 #-----------------------------
-# Stringify json Resource Inline Policies for awscli command input
-ASSUME_ROLE_POLICY=$(tr -d " \t\n\r" < ./policies/ec2-role/assume-role-policy.json)
-PRIV_SSM_EC2_POLICY=$(tr -d " \t\n\r" < ./policies/ec2-role/${PROJECT_NAME}-priv-ssm-access-policy.json)
-PRIV_S3_EC2_POLICY=$(tr -d " \t\n\r" < ./policies/ec2-role/${PROJECT_NAME}-priv-s3-access-policy.json)
-PUB_S3_EC2_POLICY=$(tr -d " \t\n\r" < ./policies/ec2-role/${PROJECT_NAME}-pub-s3-access-policy.json)
-LT_S3_EC2_POLICY=$(tr -d " \t\n\r" < ./policies/ec2-role/${PROJECT_NAME}-lt-s3-access-policy.json)
+#-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o
+# Create EC2 Instance Profiles
+# ___
+# Stringify Inline Policies
+EC2_TRUST_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2-assume-role.json)
+EC2_S3_LT_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2-s3-access-lt.json)
+EC2_S3_PUB_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2-s3-access-pub.json)
+EC2_S3_SSM_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2-s3-access-ssm.json)
+EC2_SSM_SSM_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2-ssm-access-ssm.json)
 # similar method using jq (preservers whitespace)
 # jq '.' policy.json | jq -sR '.'
 
 #-----------------------------
-# Create EC2 Instance Profiles & IAM Role Polices for 
-# Public, Private & Launch Templates
+# Create EC2 Instance Profiles & IAM Role Polices for Public, SSM Update & Launch Templates
 #-----------------------------
-for PREFIX in PRIV PUB LT; do
+for PREFIX in SSM PUB LT; do
+  # ___
   # --- Create (variable) IAM Role Name = Instance Profile Name
-  declare "$PREFIX"_EC2_IAM_NAME="${PROJECT_NAME}"-"${PREFIX,,}"-iam-ec2-"${AWS_REGION}"
+  declare "$PREFIX"_EC2_IAM_NAME="${PROJECT_NAME}"-ec2-"${PREFIX,,}"-"${AWS_REGION}"
   VAR_NAME="$PREFIX"_EC2_IAM_NAME
   echo "Creating EC2 IAM Instance Profile .............: ${!VAR_NAME}"
-
+  # ___
   #--- Create EC2 Instance Profile
   declare "$PREFIX"_EC2_PROFILE_ID="$(aws iam create-instance-profile --output text \
       --instance-profile-name "${!VAR_NAME}"                                        \
       --query 'InstanceProfile.InstanceProfileId' --profile "$AWS_PROFILE" --region "$AWS_REGION")"
   VAR_PROFILE_ID="$PREFIX"_EC2_PROFILE_ID
   echo "The EC2 Instance Profile userid ...............: ${!VAR_PROFILE_ID}"
-  # --- Create IAM Role
+  # ___
+  # --- Create IAM Role with EC2 Assume Policy
   echo "Creating Complementary EC2 IAM Role ...........: ${!VAR_NAME}"
   declare "$PREFIX"_EC2_ROLE_ID="$(aws iam create-role --role-name "${!VAR_NAME}" \
-      --assume-role-policy-document "$ASSUME_ROLE_POLICY"                         \
+      --assume-role-policy-document "$EC2_TRUST_POLICY" --path "/ce/" \
       --output text --query 'Role.RoleId' --profile "$AWS_PROFILE" --region "$AWS_REGION")"
   VAR_ROLE_ID="$PREFIX"_EC2_ROLE_ID
   echo "The IAM Role userid ...........................: ${!VAR_ROLE_ID}"
+  # ___
   # --- Attaching IAM Role to Instance Profile
   aws iam add-role-to-instance-profile --instance-profile-name "${!VAR_NAME}" \
       --role-name "${!VAR_NAME}" --profile "$AWS_PROFILE" --region "$AWS_REGION"
   echo "Attaching IAM Role to Instance Profile ........: ${!VAR_NAME}"
-  # Add new json element to Project S3 Bucket Policy for EC2 RoleId
-  POLICY_DOC=$(find ./policies/s3-buckets/${PROJECT_NAME}* -type f)
+  # ___
+  # Add new JSON element to S3 Project Bucket Policy for EC2 RoleId
+  POLICY_DOC=$(find ./policies/s3/${PROJECT_NAME}* -type f)
   jq --arg var_role_id "${!VAR_ROLE_ID}:*" '.Statement[].Condition.StringNotLike[] += [ $var_role_id ]' < "${POLICY_DOC}" > "${POLICY_DOC}".tmp 
   mv "${POLICY_DOC}".tmp "$POLICY_DOC"
-  # Embedd resource inline policy documents in IAM roles
-  EC2_ROLE_SSM_NAME="${PROJECT_NAME}"-"${PREFIX,,}"-ec2-ssm-"${AWS_REGION}"
-  EC2_ROLE_S3_NAME="${PROJECT_NAME}"-"${PREFIX,,}"-ec2-s3-"${AWS_REGION}"
-  if [[ $PREFIX == "PRIV" ]]; then
-      #aws iam put-role-policy --role-name "${!VAR_NAME}"  \
-      #    --policy-name "$EC2_ROLE_SSM_NAME"              \
-      #    --policy-document "$PRIV_SSM_EC2_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      #echo "The IAM Role is affixed with SSM Access Policy : ${EC2_ROLE_SSM_NAME}"
-      # ...
+  # ___
+  # Create sensible Names for Inline Policy Docs that go in IAM roles
+  EC2_ROLE_SSM_NAME="${PROJECT_NAME}"-ssm-"${PREFIX,,}"-"${AWS_REGION}"
+  EC2_ROLE_S3_NAME="${PROJECT_NAME}"-s3-"${PREFIX,,}"-"${AWS_REGION}"
+  # ...
+  if [[ $PREFIX == "SSM" ]]; then
+      # Add access to project bucket
       aws iam put-role-policy --role-name "${!VAR_NAME}"  \
           --policy-name "$EC2_ROLE_S3_NAME"               \
-          --policy-document "$PRIV_S3_EC2_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+          --policy-document "$EC2_S3_PUB_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
       echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_NAME}"
-      # ...
-      # Managed Policy PowerUser
-      EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/PowerUserAccess"
-      aws iam attach-role-policy --role-name "${!VAR_NAME}" \
-        --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
-  elif [[ $PREFIX == "PUB" ]]; then
-      aws iam put-role-policy --role-name "${!VAR_NAME}"  \
-          --policy-name "$EC2_ROLE_S3_NAME"               \
-          --policy-document "$PUB_S3_EC2_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_NAME}"
-  else 
-      aws iam put-role-policy --role-name "${!VAR_NAME}"  \
-          --policy-name "$EC2_ROLE_S3_NAME"               \
-          --policy-document "$LT_S3_EC2_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_NAME}"
-      # ...
-      # Managed Policy Cloudwatch Agent
+      # ___
+      # Managed Policy CloudWatch Agent
       EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
       aws iam attach-role-policy --role-name "${!VAR_NAME}" \
         --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
       echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
+      # ___
+      # Managed Policy SSM Automation
+      EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      aws iam attach-role-policy --role-name "${!VAR_NAME}" \
+        --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
+      # """
+  elif [[ $PREFIX == "PUB" ]]; then
+      # Add access to project bucket
+      aws iam put-role-policy --role-name "${!VAR_NAME}"  \
+          --policy-name "$EC2_ROLE_S3_NAME"               \
+          --policy-document "$EC2_S3_PUB_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_NAME}"
+      # ___
+      # Managed Policy CloudWatch Agent
+      EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+      aws iam attach-role-policy --role-name "${!VAR_NAME}" \
+        --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
+      # ___
+      # Managed Policy SSM Automation
+      EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      aws iam attach-role-policy --role-name "${!VAR_NAME}" \
+        --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
+      # """
+  else 
+      # Add access to project bucket
+      aws iam put-role-policy --role-name "${!VAR_NAME}"  \
+          --policy-name "$EC2_ROLE_S3_NAME"               \
+          --policy-document "$EC2_S3_PUB_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_NAME}"
+      # ___
+      # Managed Policy CloudWatch Agent
+      EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+      aws iam attach-role-policy --role-name "${!VAR_NAME}" \
+        --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
+      # """
   fi
+  # ___
 done
+#-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o
 #.............................
+
 
 #-----------------------------
 # Create S3 Project Bucket with Encryption & Policy
@@ -375,7 +430,7 @@ then
       #.............................
   aws s3api put-bucket-policy --bucket "$PROJECT_BUCKET"  \
       --profile "$AWS_PROFILE" --region "$AWS_REGION"   \
-      --policy "file://policies/s3-buckets/${PROJECT_NAME}-proj-s3-policy.json" \
+      --policy "file://policies/s3/${PROJECT_NAME}-policy-s3-bucket.json" \
       #.............................
   echo "S3 Project Bucket Created .....................: s3://$PROJECT_BUCKET"
 else
@@ -462,8 +517,8 @@ find ./ssm -type f -name "${PROJECT_NAME}*.ps1" ! -path "*/scratch/*" -print0 |
 #.............................
 
 
-
 #-----------------------------
+#-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o
 # Check if SSM UpdateWindowsAmi is required
 # USER_INPUT=valid AMI_ID bypass SSM UpdateWindowsAmi
 # USER_INPUT=Execute to perform UpdateWindowsAmi 
@@ -487,37 +542,26 @@ do
   elif [[ "$USER_INPUT" == "$AMI_UPDATE" ]]; then
     # Execute SSM UpdateWindowsAmi Document
     echo "Will now perform SSM Update on the Latest AMI .: $AMI_LATEST"
-
-      #-----------------------------
+      #_____________________________
+      #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
       # Execute Automation Document to Update AMI
       SSM_AUTO_DOC="AWS-UpdateWindowsAmi"
+      # ___
       SSM_AUTO_EC2="t2.micro"
+      # ___
+      SSM_EC2_PROFILE="${PROJECT_NAME}-ec2-ssm-${AWS_REGION}"
+      # ___
+      SSM_SERVICE_ROLE="arn:aws:iam::$AWS_ACC_ID:role/ce/$PROJECT_NAME-ssm-automation-$AWS_REGION"
+      # ___
+      SSM_PRE_UPDATE="Copy-S3Object -BucketName $PROJECT_BUCKET -KeyPrefix ssm -LocalFolder C:\\$PROJECT_BUCKET"
       #---
-      #EC2_PROFILE="role.ec2-usr-pwr"
-      #EC2_PROFILE="role.ec2-usr-pwr"
-      EC2_PROFILE="cfn-gpu-rig-cli-priv-iam-ec2-eu-central-1"
-      #EC2_PROFILE="${PROJECT_NAME}-priv-iam-ec2-${AWS_REGION}"
-      #---
-      #SSM_SERVICE_ROLE="arn:aws:iam::${AWS_ACC_ID}:role/AutomationServiceRole"
-      #SSM_SERVICE_ROLE="arn:aws:iam::311674589786:role/role.ssm-automation.eu-central-1"
-      SSM_SERVICE_ROLE="arn:aws:iam::311674589786:role/role.cfn-gpu-rig-cli-ssm-automation-eu-central-1"
-      #---
-      PRE_UPDATE="Copy-S3Object -BucketName $PROJECT_BUCKET -KeyPrefix ssm -LocalFolder C:\\$PROJECT_BUCKET"
-      #PRE_UPDATE='Copy-S3Object -BucketName proj-cfn-gpu-rig-cli -KeyPrefix ssm -LocalFolder C:\proj-cfn-gpu-rig-cli -Region eu-central-1'
-      #PRE_UPDATE='Copy-S3Object -BucketName '${PROJECT_BUCKET}' -KeyPrefix ssm -LocalFolder C:\'${PROJECT_NAME}' -Region '${AWS_REGION}
-      #PRE_UPDATE="Copy-S3Object -BucketName depot.ce-windows -KeyPrefix ssm -LocalFolder C:\\${PROJECT_NAME} -Region $AWS_REGION"
-      #---
-      POST_UPDATE="C:\\$PROJECT_BUCKET\\$PROJECT_NAME-postupdate.ps1"
-      #POST_UPDATE='C:\'${PROJECT_BUCKET}'\'${PROJECT_NAME}'-postupdate.ps1'
-      #POST_UPDATE="C:\\$PROJECT_BUCKET\\$PROJECT_NAME-postupdate.ps1"
-      #POST_UPDATE="C:\\${PROJECT_BUCKET}\\${PROJECT_NAME}-postupdate.ps1"
-      #POST_UPDATE='C:\proj-cfn-gpu-rig-cli\cfn-gpu-rig-cli-postupdate.ps1'
-      #---
+      SSM_POST_UPDATE="C:\\$PROJECT_BUCKET\\$PROJECT_NAME-postupdate.ps1"
+      # ___
       #-----------------------------
       COMMAND_ID=$(aws ssm start-automation-execution --document-name="$SSM_AUTO_DOC" --query 'AutomationExecutionId' --output text \
         --profile "$AWS_PROFILE" --region "$AWS_REGION" --tags Key=Project,Value="${PROJECT_NAME}" \
-        --parameters "SourceAmiId=$AMI_LATEST,IamInstanceProfileName=$EC2_PROFILE,AutomationAssumeRole=$SSM_SERVICE_ROLE,\
-          TargetAmiName=${PROJECT_NAME}-ssm-update,PreUpdateScript=$PRE_UPDATE,PostUpdateScript=$POST_UPDATE,\
+        --parameters "SourceAmiId=$AMI_LATEST,IamInstanceProfileName=$SSM_EC2_PROFILE,AutomationAssumeRole=$SSM_SERVICE_ROLE,\
+          TargetAmiName=${PROJECT_NAME}-ssm-update,PreUpdateScript=$SSM_PRE_UPDATE,PostUpdateScript=$SSM_POST_UPDATE,\
           InstanceType=$SSM_AUTO_EC2")
       #-----------------------------
       if [[ $? -eq 0 ]]; then
@@ -525,11 +569,10 @@ do
         CHECK_STATUS=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
             --query "AutomationExecutionMetadataList[].AutomationExecutionStatus" --profile "$AWS_PROFILE" --region "$AWS_REGION")
         echo "SSM Automation Execution Status ...............: $CHECK_STATUS"
-        while [[ $CHECK_STATUS == "InProgress" ]]
-        do
-            printf '.'
-            sleep 10
-            CHECK_STATUS=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
+        while [[ $CHECK_STATUS == "InProgress" ]]; do
+          printf '.'
+          sleep 10
+          CHECK_STATUS=$(aws ssm describe-automation-executions --filter "Key=ExecutionId,Values=$COMMAND_ID" --output text \
             --query "AutomationExecutionMetadataList[].AutomationExecutionStatus" --profile "$AWS_PROFILE" --region "$AWS_REGION")
         done
         printf '\n'
@@ -547,34 +590,32 @@ do
         aws ec2 create-tags --resources "$AMI_UPDATE" --tags Key=Name,Value="${PROJECT_NAME}-ssm-update" \
           --profile "$AWS_PROFILE" --region "$AWS_REGION"
         #.............................
+        # Reference Updated AMI
         AMI_LATEST="$AMI_UPDATE"
       else 
         echo "SSM Automation Update NOT Successful ..........: $CHECK_STATUS"
         exit 1
       fi
+      #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
       #.............................
 
     break
-  #-----------------------------
+  #.............................
   else
     # Input not understood. Try again.
     echo "A Valid AMI was not found, try again ..........: $USER_INPUT"
   fi
 done
+#-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o
 #.............................
 
 
-
-
-
-
-
 #-----------------------------
-#-----------------------------
+#-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o
 # Stage1 Stack Creation Code Block
 BUILD_COUNTER="stage1"
 TEMPLATE_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli.yaml"
-STACK_POLICY_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/policies/cfn-stacks/${PROJECT_NAME}-${BUILD_COUNTER}-cfn-stack-policy.json"
+STACK_POLICY_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/policies/cfn/${PROJECT_NAME}-policy-cfn${BUILD_COUNTER}-stack.json"
 
 echo "Cloudformation Stack Creation Initiated .......: $TEMPLATE_URL"
 
@@ -586,7 +627,7 @@ STACK_ID=$(aws cloudformation create-stack --stack-name "$STACK_NAME" --paramete
                 ParameterKey=DomainHostedZoneId,ParameterValue="$HOSTED_ZONE_ID"        \
                 ParameterKey=SshAccessCIDR,ParameterValue="$SSH_ACCESS_CIDR"            \
                 ParameterKey=CurrentAmi,ParameterValue="$AMI_LATEST"                    \
-                ParameterKey=GamingEmailAddrSNS,ParameterValue="$USER_EMAIL"                  \
+                ParameterKey=GamingEmailAddrSNS,ParameterValue="$USER_EMAIL"            \
                 --tags Key=Name,Value="$PROJECT_NAME"                                   \
                 --stack-policy-url "$STACK_POLICY_URL" --template-url "$TEMPLATE_URL"   \
                 --profile "$AWS_PROFILE" --region "$AWS_REGION"                         \
@@ -599,7 +640,7 @@ if [[ $? -eq 0 ]]; then
   while [[ $CHECK_STATUS == "REVIEW_IN_PROGRESS" ]] || [[ $CHECK_STATUS == "CREATE_IN_PROGRESS" ]]
   do
       # Wait 1 seconds and then check stack status again
-      sleep 2
+      sleep 3
       printf '.'
       CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
   done
@@ -621,9 +662,8 @@ TIME_END_PT=$(date +%s)
 TIME_DIFF_PT=$((TIME_END_PT - TIME_START_PROJ))
 echo "$BUILD_COUNTER Finished Execution Time ................: \
 $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 60 ))s"
+#-o-o-o-o-o-o-o-o-o-o-o-o-o-o-o
 #.............................
-#.............................
-
 
 #-----------------------------
 # Grab the IDs of the ec2 instances for further processing
@@ -632,7 +672,6 @@ INSTANCE_PUB_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --
   --profile "$AWS_PROFILE" --region "$AWS_REGION")
 echo "Public Subnet EC2 Instance ID .................: $INSTANCE_PUB_ID"
 #.............................
-
 
 #-----------------------------
 # Validity Check. Wait for instance status ok before moving on.
@@ -653,8 +692,6 @@ echo "Public Subnet EC2 Instance State ..............: OK"
 #P1=$!
 #wait $P1
 #.............................
-
-
 
 #-----------------------------
 # Detect SSM Agent (Wait)
@@ -681,7 +718,6 @@ else
 fi
 #-----------------------------
 
-
 #-----------------------------
 # Grab the Admin Password
 # Do local decryption on password later.
@@ -692,61 +728,6 @@ echo "Retrieving Public Instance Admin Password .....: $INSTANCE_PUB_PASSWD"
 echo "$INSTANCE_PUB_PASSWD" > /tmp/password
 #.............................
 
-
-
-#!! COMMENT Construct Begins Here:
-: <<'END'
-#!! COMMENT BEGIN
-
-
-#-----------------------------
-# Update SSM Agent 
-echo "Update SSM Agent on Instance ..................: $INSTANCE_PUB_ID"
-SSM_COMMAND_ID=$(aws ssm send-command --document-name "AWS-UpdateSSMAgent" --instance-ids "$INSTANCE_PUB_ID" \
-  --output text --profile "$AWS_PROFILE" --region "$AWS_REGION" --query 'Command.CommandId')
-echo "Waiting for SSM Agent Update with Command ID ..: $SSM_COMMAND_ID"
-#.............................
-aws ssm wait command-executed --command-id "$SSM_COMMAND_ID" --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
-P1=$!
-wait $P1
-#.............................
-if [[ $? -eq 0 ]]; then
-  echo "Success! SSM Agent Updated with Command ID ....: $SSM_COMMAND_ID"
-else
-  echo "Error! SSM Agent Failed Update Command ID .....: $INSTANCE_PUB_ID"
-  exit 1
-fi
-#-----------------------------
-
-
-#-----------------------------
-# Install EC2 Launch Agent
-echo "Installing EC2 Launch Agent on Instance .......: $INSTANCE_PUB_ID"
-#SSM_PARAMETERS='{"action":["Install"],"installationType":["Uninstall and reinstall"],"name":["AWSEC2Launch-Agent"],"version":[""],"additionalArguments":["{}"]}'
-SSM_PARAMETERS='{"action":["Install"],"installationType":["Uninstall and reinstall"],"name":["AWSEC2Launch-Agent"]}'
-SSM_COMMAND_ID=$(aws ssm send-command --document-name "AWS-ConfigureAWSPackage" --instance-ids "$INSTANCE_PUB_ID" \
-  --parameters "$SSM_PARAMETERS" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION" --query 'Command.CommandId')
-echo "Waiting for EC2 Launch Agent Installation ID ..: $SSM_COMMAND_ID"
-#.............................
-aws ssm wait command-executed --command-id "$SSM_COMMAND_ID" --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
-P1=$!
-wait $P1
-#.............................
-if [[ $? -eq 0 ]]; then
-  echo "Success! EC2 Launch Agent Installed ID ........: $SSM_COMMAND_ID"
-else
-  echo "Error! EC2 Launch Agent Failed Installation ...: $INSTANCE_PUB_ID"
-  exit 1
-fi
-#-----------------------------
-
-
-#!! COMMENT END
-END
-#!! COMMENT Construct Ends Here:
-
-
-
 #-----------------------------
 # Shuntdown instance for faster image creation
 aws ec2 stop-instances --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null
@@ -754,14 +735,12 @@ echo "Stopping Public Instances Initiated ...........: "
 #.............................
 
 #-----------------------------
-# Wait for new AMIs to become available
+# Wait
 aws ec2 wait instance-stopped --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" &
 P1=$!
 wait $P1
 echo "Public Instances have now stopped .............: $INSTANCE_PUB_ID "
 #.............................
-
-
 
 #-----------------------------
 # Create Golden AMI
@@ -782,7 +761,6 @@ else
 fi
 #-----------------------------
 
-
 #-----------------------------
 # Give AMIs a Name Tag
 aws ec2 create-tags --resources "$AMI_IMAGE_PUB" --tags Key=Name,Value="${PROJECT_NAME}-gpu-build" --profile "$AWS_PROFILE" --region "$AWS_REGION"
@@ -792,6 +770,11 @@ aws ec2 create-tags --resources "$AMI_IMAGE_PUB" --tags Key=Name,Value="${PROJEC
 # Terminate the instances - no longer needed.
 aws ec2 terminate-instances --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" > /dev/null
 #.............................
+
+
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# CONSIDER DELETEING SSM UPDATED AMI HERE
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 #-----------------------------
 # Calculate AMI Creation Execution Time
@@ -861,15 +844,6 @@ $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 
 
 #-----------------------------
 # Grab the IDs of the ec2 instances for further processing
-#INSTANCE_PUB_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
-#    --profile "$AWS_PROFILE" --region "$AWS_REGION"                                         \
-#    --query "Stacks[].Outputs[?OutputKey == 'InstanceIdPublicLaunch'].OutputValue")
-#echo "Gaming Server EC2 Instance ID .........................: $INSTANCE_PUB_ID"
-#.............................
-
-
-#-----------------------------
-# Grab the IDs of the ec2 instances for further processing
 #aws ec2 describe-instances --output text --query 'Reservations[].Instances[].[Tags[?Key==`Name`].Value|[0],InstanceId]'
 #INSTANCE_PUB_ID=$(aws ec2 describe-instances --output text --profile "$AWS_PROFILE" --region "$AWS_REGION" \
 # --query "Reservations[].Instances[]|[?Tags[?Value=='cfn-gpu-rig-cli-autoscale-grp']]|[?State.Name=='running'].InstanceId")
@@ -880,7 +854,6 @@ INSTANCE_PUB_ID=$(aws ec2 describe-instances --output text --filters Name=instan
 echo "Gaming Server EC2 Instance ID .................: $INSTANCE_PUB_ID"
 #.............................
 
-
 #-----------------------------
 # Grab the DNS of the ec2 instances for further processing
 INSTANCE_PUB_DNS=$(aws ec2 describe-instances --instance-ids "$INSTANCE_PUB_ID" \
@@ -888,8 +861,6 @@ INSTANCE_PUB_DNS=$(aws ec2 describe-instances --instance-ids "$INSTANCE_PUB_ID" 
     --profile  "$AWS_PROFILE" --region "$AWS_REGION")
 echo "Gaming Server EC2 Instance DNS ................: $INSTANCE_PUB_DNS"
 #.............................
-
-
 
 
 #-----------------------------

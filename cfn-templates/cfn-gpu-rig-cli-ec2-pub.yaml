@@ -103,9 +103,9 @@ Resources:
       SourceDestCheck: true
       Tenancy: "default"
       # .............................
-      #IamInstanceProfile: !Sub "${ProjectName}-pub-iam-ec2-${AWS::Region}"
+      IamInstanceProfile: !Sub "${ProjectName}-ec2-pub-${AWS::Region}"
       #IamInstanceProfile: "role.ec2-usr-datascience.eu-central-1"
-      IamInstanceProfile: "role.ec2-usr-pwr"
+      #IamInstanceProfile: "cfn-gpu-rig-cli-ec2-pub-eu-central-1"
       ImageId: !Ref PublicAmiId
       InstanceType: "t2.micro"
       #InstanceType: "g4dn.xlarge"
