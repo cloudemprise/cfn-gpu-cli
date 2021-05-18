@@ -113,7 +113,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-vpc.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-vpc.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -129,7 +129,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-vpc-nacl.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-vpc-nacl.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -139,10 +139,14 @@ Resources:
           !GetAtt VPCDef.Outputs.PublicSubnetIdA
         PublicSubnetIdB:
           !GetAtt VPCDef.Outputs.PublicSubnetIdB
+        PublicSubnetIdC:
+          !GetAtt VPCDef.Outputs.PublicSubnetIdC
         PrivateSubnetIdA:
           !GetAtt VPCDef.Outputs.PrivateSubnetIdA
         PrivateSubnetIdB:
           !GetAtt VPCDef.Outputs.PrivateSubnetIdB
+        PrivateSubnetIdC:
+          !GetAtt VPCDef.Outputs.PrivateSubnetIdC
       TimeoutInMinutes: 5
 
 
@@ -153,7 +157,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-vpc-sg.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-vpc-sg.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -172,7 +176,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-pub.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-pub.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -182,6 +186,8 @@ Resources:
           !GetAtt VPCDef.Outputs.PublicSubnetIdA
         PublicSubnetIdB:
           !GetAtt VPCDef.Outputs.PublicSubnetIdB
+        PublicSubnetIdC:
+          !GetAtt VPCDef.Outputs.PublicSubnetIdC
         PublicSgResourceId:
           !GetAtt SgDefs.Outputs.PublicSgResourceId
       TimeoutInMinutes: 10
@@ -196,7 +202,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-priv.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-priv.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -217,7 +223,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-lt.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-lt.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -236,7 +242,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-tg.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-tg.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -253,7 +259,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-sns.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-sns.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -270,7 +276,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-asg.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-asg.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -278,6 +284,8 @@ Resources:
           !GetAtt VPCDef.Outputs.PublicSubnetIdA
         PublicSubnetIdB:
           !GetAtt VPCDef.Outputs.PublicSubnetIdB
+        PublicSubnetIdC:
+          !GetAtt VPCDef.Outputs.PublicSubnetIdC
         LaunchTemplateIdASG:
           !GetAtt LaunchTemplateDef.Outputs.LaunchTemplateId
         TargetGroupArnNLB:
@@ -296,7 +304,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-nlb.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-nlb.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -304,6 +312,8 @@ Resources:
           !GetAtt VPCDef.Outputs.PublicSubnetIdA
         PublicSubnetIdB:
           !GetAtt VPCDef.Outputs.PublicSubnetIdB
+        PublicSubnetIdC:
+          !GetAtt VPCDef.Outputs.PublicSubnetIdC
         TargetGroupArnNLB:
           !GetAtt TargetGroupDef.Outputs.GamingTargetGroupARN
       TimeoutInMinutes: 5
@@ -320,7 +330,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-cw.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-cw.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -337,7 +347,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-r53.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-r53.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName

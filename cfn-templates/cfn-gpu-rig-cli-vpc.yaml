@@ -15,10 +15,14 @@ Description: >
   Public Subnet Total      : 10.0.128.0/18
   Availability Zone A CIDR : 10.0.128.0/20
   Availability Zone B CIDR : 10.0.144.0/20
+  Availability Zone C CIDR : 10.0.160.0/20
+
 
   Private Subnet Total     : 10.0.0.0/17
   Availability Zone A CIDR : 10.0.0.0/19
   Availability Zone B CIDR : 10.0.32.0/19
+  Availability Zone C CIDR : 10.0.64.0/19
+
 
 # ------------------------------------------
 
@@ -118,6 +122,21 @@ Resources:
             !Sub "${ProjectName}-PubSubnetB"
 
   # ------------------------------------------
+  # --- AZ-C Public Subnet
+  PublicSubnetC:
+    Type: "AWS::EC2::Subnet"
+    # .............................
+    Properties:
+      CidrBlock: "10.0.160.0/20"
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ "2", !GetAZs ]
+      Tags:
+        - Key: "Name"
+          Value:
+            !Sub "${ProjectName}-PubSubnetC"
+
+  # ------------------------------------------
   # --- AZ1 Private Subnet
   PrivateSubnetA:
     Type: "AWS::EC2::Subnet"
@@ -146,6 +165,21 @@ Resources:
         - Key: "Name"
           Value:
             !Sub "${ProjectName}-PrivSubnetB"
+
+  # ------------------------------------------
+  # --- AZ-C Private Subnet
+  PrivateSubnetC:
+    Type: "AWS::EC2::Subnet"
+    # .............................
+    Properties:
+      CidrBlock: "10.0.64.0/19"
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ "2", !GetAZs ]
+      Tags:
+        - Key: "Name"
+          Value:
+            !Sub "${ProjectName}-PrivSubnetC"
 
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -181,6 +215,14 @@ Resources:
       SubnetId: !Ref PublicSubnetB
 
   # ------------------------------------------
+  RouteTablePublicAssociationC:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    # .............................
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      SubnetId: !Ref PublicSubnetC
+
+  # ------------------------------------------
   RouteTablePublicRoute0:
     Type: "AWS::EC2::Route"
     # .............................
@@ -210,7 +252,6 @@ Resources:
       RouteTableId: !Ref RouteTablePrivateA
       SubnetId: !Ref PrivateSubnetA
 
-
   # ------------------------------------------
   # --- Private B Route Table
   RouteTablePrivateB:
@@ -229,6 +270,25 @@ Resources:
     Properties:
       RouteTableId: !Ref RouteTablePrivateB
       SubnetId: !Ref PrivateSubnetB
+
+  # ------------------------------------------
+  # --- Private C Route Table
+  RouteTablePrivateC:
+    Type: "AWS::EC2::RouteTable"
+    # .............................
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: "Name"
+          Value:
+            !Sub "${ProjectName}-PrivRouteC"
+  # ------------------------------------------
+  RouteTablePrivateCAssociation1:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    # .............................
+    Properties:
+      RouteTableId: !Ref RouteTablePrivateC
+      SubnetId: !Ref PrivateSubnetC
 
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -275,6 +335,12 @@ Outputs:
     Value: !Ref PublicSubnetB
 
   # ------------------------------------------
+  # ---Public Subnet AZ-C Export
+  PublicSubnetIdC:
+    Description: "Public Subnet ID AZ-C"
+    Value: !Ref PublicSubnetC
+
+  # ------------------------------------------
   # ---Private Subnet AZ-A Export
   PrivateSubnetIdA:
     Description: "Private Subnet ID AZ-A"
@@ -285,3 +351,9 @@ Outputs:
   PrivateSubnetIdB:
     Description: "Private Subnet ID AZ-B"
     Value: !Ref PrivateSubnetB
+
+  # ------------------------------------------
+  # ---Private Subnet AZ-C Export
+  PrivateSubnetIdC:
+    Description: "Private Subnet ID AZ-C"
+    Value: !Ref PrivateSubnetC

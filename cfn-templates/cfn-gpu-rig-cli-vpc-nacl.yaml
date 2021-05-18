@@ -47,12 +47,20 @@ Parameters:
     Description: "Public Subnet ID AZ-B"
     Type: "AWS::EC2::Subnet::Id"
   # ------------------------------------------
+  PublicSubnetIdC:
+    Description: "Public Subnet ID AZ-C"
+    Type: "AWS::EC2::Subnet::Id"
+  # ------------------------------------------
   PrivateSubnetIdA:
     Description: "Private Subnet ID AZ-A"
     Type: "AWS::EC2::Subnet::Id"
   # ------------------------------------------
   PrivateSubnetIdB:
     Description: "Private Subnet ID AZ-B"
+    Type: "AWS::EC2::Subnet::Id"
+  # ------------------------------------------
+  PrivateSubnetIdC:
+    Description: "Private Subnet ID AZ-C"
     Type: "AWS::EC2::Subnet::Id"
 
 
@@ -94,6 +102,13 @@ Resources:
     Properties:
       NetworkAclId: !Ref PublicNAcl
       SubnetId: !Ref PublicSubnetIdB
+  # ------------------------------------------
+  PublicSubetNAclAssociationC:
+    Type: "AWS::EC2::SubnetNetworkAclAssociation"
+    # .............................
+    Properties:
+      NetworkAclId: !Ref PublicNAcl
+      SubnetId: !Ref PublicSubnetIdC
 
 
   # ------------------------------------------
@@ -121,6 +136,13 @@ Resources:
     Properties:
       NetworkAclId: !Ref PrivateNAcl
       SubnetId: !Ref PrivateSubnetIdB
+  # ------------------------------------------
+  PrivateSubetNAclAssociationC:
+    Type: "AWS::EC2::SubnetNetworkAclAssociation"
+    # .............................
+    Properties:
+      NetworkAclId: !Ref PrivateNAcl
+      SubnetId: !Ref PrivateSubnetIdC
 
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -201,6 +223,20 @@ Resources:
         From: 3389
         To: 3389
   # ------------------------------------------
+  PublicNAclIngress61:
+    Type: "AWS::EC2::NetworkAclEntry"
+    # .............................
+    Properties:
+      NetworkAclId: !Ref PublicNAcl
+      Egress: false
+      RuleNumber: 61
+      Protocol: 6
+      RuleAction: "allow"
+      CidrBlock: "0.0.0.0/0"
+      PortRange:
+        From: 8443
+        To: 8443
+  # ------------------------------------------
   PublicNAclIngress62:
     Type: "AWS::EC2::NetworkAclEntry"
     # .............................
@@ -208,12 +244,12 @@ Resources:
       NetworkAclId: !Ref PublicNAcl
       Egress: false
       RuleNumber: 62
-      Protocol: 6
+      Protocol: 17
       RuleAction: "allow"
       CidrBlock: "0.0.0.0/0"
       PortRange:
-        From: 1024
-        To: 65535
+        From: 8443
+        To: 8443
   # ------------------------------------------
   PublicNAclIngress63:
     Type: "AWS::EC2::NetworkAclEntry"
@@ -222,6 +258,20 @@ Resources:
       NetworkAclId: !Ref PublicNAcl
       Egress: false
       RuleNumber: 63
+      Protocol: 6
+      RuleAction: "allow"
+      CidrBlock: "0.0.0.0/0"
+      PortRange:
+        From: 1024
+        To: 65535
+  # ------------------------------------------
+  PublicNAclIngress64:
+    Type: "AWS::EC2::NetworkAclEntry"
+    # .............................
+    Properties:
+      NetworkAclId: !Ref PublicNAcl
+      Egress: false
+      RuleNumber: 64
       Protocol: 17
       RuleAction: "allow"
       CidrBlock: "0.0.0.0/0"

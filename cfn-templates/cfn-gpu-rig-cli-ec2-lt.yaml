@@ -64,7 +64,8 @@ Resources:
       # .............................
       LaunchTemplateData:
         ImageId: !Ref PublicLtAmiId
-        InstanceType: "t2.micro"
+        #InstanceType: "t2.micro"
+        InstanceType: "g4dn.xlarge"
         KeyName: !Sub "aws.dev.ec2.win.ssh.key.${AWS::Region}"
         Monitoring:
           Enabled: false
@@ -72,37 +73,35 @@ Resources:
           - !Ref PublicSgResourceId
         # .............................
         IamInstanceProfile:
-          #Name: "role.ec2-usr-pwr"
-          #Name: "role.ec2-usr-datascience.eu-central-1"
           Name: !Sub "${ProjectName}-ec2-lt-${AWS::Region}"
         # .............................
         InstanceMarketOptions: 
           MarketType: "spot"
           SpotOptions: 
-            MaxPrice: "0.01000"
+            #MaxPrice: "0.01000"
             # one-time | persistent
             SpotInstanceType: "one-time"
             #  hibernate | stop | terminate
             InstanceInterruptionBehavior: "terminate"
         # .............................
-        #MetadataOptions:
-        #  HttpEndpoint: "enabled"
-          #HttpTokens: "required"
-        #  HttpTokens: "optional"
-        #  HttpPutResponseHopLimit: 1
+        MetadataOptions:
+          HttpEndpoint: "enabled"
+          HttpTokens: "required"
+          #HttpTokens: "optional"
+          HttpPutResponseHopLimit: 1
         # .............................
-        UserData:
-          Fn::Base64: |
-            version: 1.0
-            tasks:
-            - task: executeScript
-              inputs:
-              - frequency: always
-                type: powershell
-                runAs: localSystem
-                content: |-
-                  New-Item -Path 'C:\PowerShellTest.txt' -ItemType File
-                  Set-Content 'C:\PowerShellTest.txt' "hello world"
+        #UserData:
+        #  Fn::Base64: |
+        #    version: 1.0
+        #    tasks:
+        #    - task: executeScript
+        #      inputs:
+        #      - frequency: always
+        #        type: powershell
+        #        runAs: localSystem
+        #        content: |-
+        #          New-Item -Path 'C:\PowerShellTest.txt' -ItemType File
+        #          Set-Content 'C:\PowerShellTest.txt' "hello world"
         # .............................
 
 # ==========================================

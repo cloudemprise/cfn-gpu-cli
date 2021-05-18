@@ -41,6 +41,12 @@ Parameters:
     Type: "AWS::EC2::Subnet::Id"
 
   # ------------------------------------------
+  # --- Public Subnet ID
+  PublicSubnetIdC:
+    Description: "Public Subnet ID AZ-C"
+    Type: "AWS::EC2::Subnet::Id"
+
+  # ------------------------------------------
   # --- Network Loadbalancer Target Grp ARN
   TargetGroupArnNLB:
     Description: "Network Loadbalancer Target Group ARN"
@@ -81,6 +87,7 @@ Resources:
       Subnets:
         - !Ref PublicSubnetIdA
         - !Ref PublicSubnetIdB
+        - !Ref PublicSubnetIdC
       # .............................
       LoadBalancerAttributes:
         -

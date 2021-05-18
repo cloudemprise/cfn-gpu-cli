@@ -39,6 +39,10 @@ Parameters:
   PublicSubnetIdB:
     Description: "Public Subnet ID AZ-B"
     Type: "AWS::EC2::Subnet::Id"
+  # .............................
+  PublicSubnetIdC:
+    Description: "Public Subnet ID AZ-C"
+    Type: "AWS::EC2::Subnet::Id"
 
   # ------------------------------------------
   LaunchTemplateIdASG:
@@ -88,6 +92,7 @@ Resources:
       VPCZoneIdentifier:
         - !Ref PublicSubnetIdA
         - !Ref PublicSubnetIdB
+        - !Ref PublicSubnetIdC
       # .............................
       Cooldown: "300"
       DesiredCapacity: "1"
