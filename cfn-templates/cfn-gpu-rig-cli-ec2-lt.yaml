@@ -84,11 +84,11 @@ Resources:
             #  hibernate | stop | terminate
             InstanceInterruptionBehavior: "terminate"
         # .............................
-        MetadataOptions:
-          HttpEndpoint: "enabled"
-          HttpTokens: "required"
-          #HttpTokens: "optional"
-          HttpPutResponseHopLimit: 1
+        #MetadataOptions:
+        #  HttpEndpoint: "enabled"
+          #HttpTokens: "required"
+        #  HttpTokens: "optional"
+        #  HttpPutResponseHopLimit: 1
         # .............................
         #UserData:
         #  Fn::Base64: |

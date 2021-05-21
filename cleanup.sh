@@ -208,6 +208,12 @@ fi
 #.............................
 
 
+#!! COMMENT Construct Begins Here:
+: <<'END'
+#!! COMMENT BEGIN
+
+
+
 #----------------------------------------------
 # Delete SSM Update AMI  
 AMI_NAME="cfn-gpu-rig-cli-ssm-update"
@@ -233,6 +239,10 @@ else
   #exit 1
 fi
 #.............................
+
+#!! COMMENT END
+END
+#!! COMMENT Construct Ends Here:
 
 
 #!! COMMENT Construct Begins Here:

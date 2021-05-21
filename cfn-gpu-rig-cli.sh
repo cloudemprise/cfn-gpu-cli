@@ -353,6 +353,7 @@ EC2_TRUST_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2-a
 EC2_S3_LT_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2-s3-access-lt.json)
 EC2_S3_PUB_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2-s3-access-pub.json)
 EC2_S3_SSM_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2-s3-access-ssm.json)
+EC2_S3_DCV_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2-s3-access-dcv.json)
 EC2_SSM_SSM_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2-ssm-access-ssm.json)
 # similar method using jq (preservers whitespace)
 # jq '.' policy.json | jq -sR '.'
@@ -395,14 +396,21 @@ for PREFIX in SSM PUB LT; do
   # ___
   # Create sensible Names for Inline Policy Docs that go in IAM roles
   EC2_ROLE_SSM_NAME="${PROJECT_NAME}"-ssm-"${PREFIX,,}"-"${AWS_REGION}"
-  EC2_ROLE_S3_NAME="${PROJECT_NAME}"-s3-"${PREFIX,,}"-"${AWS_REGION}"
+  EC2_ROLE_S3_PROJ="${PROJECT_NAME}"-s3-proj-"${PREFIX,,}"-"${AWS_REGION}"
+  EC2_ROLE_S3_DCV="${PROJECT_NAME}"-s3-dcv-"${PREFIX,,}"-"${AWS_REGION}"
   # ...
   if [[ $PREFIX == "SSM" ]]; then
       # Add access to project bucket
       aws iam put-role-policy --role-name "${!VAR_NAME}"  \
-          --policy-name "$EC2_ROLE_S3_NAME"               \
+          --policy-name "$EC2_ROLE_S3_PROJ"               \
           --policy-document "$EC2_S3_SSM_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_NAME}"
+      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_PROJ}"
+      # ___
+      # Add access to dcv-license bucket
+      aws iam put-role-policy --role-name "${!VAR_NAME}"  \
+          --policy-name "$EC2_ROLE_S3_DCV"               \
+          --policy-document "$EC2_S3_DCV_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_DCV}"
       # ___
       # Managed Policy CloudWatch Agent
       EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
@@ -425,9 +433,15 @@ for PREFIX in SSM PUB LT; do
   elif [[ $PREFIX == "PUB" ]]; then
       # Add access to project bucket
       aws iam put-role-policy --role-name "${!VAR_NAME}"  \
-          --policy-name "$EC2_ROLE_S3_NAME"               \
+          --policy-name "$EC2_ROLE_S3_PROJ"               \
           --policy-document "$EC2_S3_PUB_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_NAME}"
+      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_PROJ}"
+      # ___
+      # Add access to dcv-license bucket
+      aws iam put-role-policy --role-name "${!VAR_NAME}"  \
+          --policy-name "$EC2_ROLE_S3_DCV"               \
+          --policy-document "$EC2_S3_DCV_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_DCV}"
       # ___
       # Managed Policy CloudWatch Agent
       EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
@@ -444,9 +458,15 @@ for PREFIX in SSM PUB LT; do
   else 
       # Add access to project bucket
       aws iam put-role-policy --role-name "${!VAR_NAME}"  \
-          --policy-name "$EC2_ROLE_S3_NAME"               \
+          --policy-name "$EC2_ROLE_S3_PROJ"               \
           --policy-document "$EC2_S3_LT_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_NAME}"
+      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_PROJ}"
+      # ___
+      # Add access to dcv-license bucket
+      aws iam put-role-policy --role-name "${!VAR_NAME}"  \
+          --policy-name "$EC2_ROLE_S3_DCV"               \
+          --policy-document "$EC2_S3_DCV_POLICY" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      echo "The IAM Role is affixed with S3 Access Policy .: ${EC2_ROLE_S3_DCV}"
       # ___
       # Managed Policy CloudWatch Agent
       EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
@@ -846,6 +866,68 @@ echo "Retrieving Public Instance Admin Password .....: $INSTANCE_PUB_PASSWD"
 echo "$INSTANCE_PUB_PASSWD" > "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
 # password file readonly
 chmod 600 "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#----------------------------------------------
+# Execute SSM AWSEC2Launch-RunMigration Document
+echo "Will now perform SSM EC2Launch Migration on ...: $INSTANCE_PUB_ID"
+# ___
+# Execute Automation Document to Update AMI
+SSM_AUTO_DOC="AWSEC2Launch-RunMigration"
+# ___
+COMMAND_ID=$(aws ssm send-command --document-name="$SSM_AUTO_DOC" --document-version '$DEFAULT' \
+  --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  --query 'Command.CommandId' --output text --timeout-seconds 600)
+# ___
+if [[ $? -eq 0 ]]; then
+  echo "SSM RunCommand Execution Command ID ...........: $COMMAND_ID"
+  CHECK_STATUS=$(aws ssm list-command-invocations --command-id "$COMMAND_ID" --output text \
+    --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+    --query 'CommandInvocations[].Status')
+  echo "SSM RunCommand Execution Status ...............: $CHECK_STATUS"
+  while [[ $CHECK_STATUS == "InProgress" ]]; do
+    printf '.'
+    sleep 3
+    CHECK_STATUS=$(aws ssm list-command-invocations --command-id "$COMMAND_ID" --output text \
+      --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+      --query 'CommandInvocations[].Status')
+  done
+  printf '\n'
+  [[ $CHECK_STATUS == "Failed" ]] && \
+  { echo "SSM Failed to Execute EC2Launch Migration .....: $COMMAND_ID"; exit 1; } \
+  || { echo "SSM RunCommand Execution Status ...............: $CHECK_STATUS"; }
+fi
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#----------------------------------------------
+# Execute SSM AWSEC2-RunSysprep Document
+echo "Will now perform SSM EC2 Run Sysprep on .......: $INSTANCE_PUB_ID"
+# ___
+# Execute Automation Document to Update AMI
+SSM_AUTO_DOC="AWSEC2-RunSysprep"
+# ___
+COMMAND_ID=$(aws ssm send-command --document-name="$SSM_AUTO_DOC" --document-version '$DEFAULT' \
+  --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+  --query 'Command.CommandId' --output text --timeout-seconds 600)
+# ___
+if [[ $? -eq 0 ]]; then
+  echo "SSM RunCommand Execution Command ID ...........: $COMMAND_ID"
+  CHECK_STATUS=$(aws ssm list-command-invocations --command-id "$COMMAND_ID" --output text \
+    --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+    --query 'CommandInvocations[].Status')
+  echo "SSM RunCommand Execution Status ...............: $CHECK_STATUS"
+  while [[ $CHECK_STATUS == "InProgress" ]]; do
+    printf '.'
+    sleep 3
+    CHECK_STATUS=$(aws ssm list-command-invocations --command-id "$COMMAND_ID" --output text \
+      --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+      --query 'CommandInvocations[].Status')
+  done
+  printf '\n'
+  [[ $CHECK_STATUS == "Failed" ]] && \
+  { echo "SSM Failed to Execute EC2 Run Sysprep on ......: $COMMAND_ID"; exit 1; } \
+  || { echo "SSM RunCommand Execution Status ...............: $CHECK_STATUS"; }
+fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------

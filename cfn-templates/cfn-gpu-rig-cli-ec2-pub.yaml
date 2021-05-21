@@ -111,8 +111,8 @@ Resources:
       # .............................
       IamInstanceProfile: !Sub "${ProjectName}-ec2-pub-${AWS::Region}"
       ImageId: !Ref PublicAmiId
-      #InstanceType: "t2.micro"
-      InstanceType: "g4dn.xlarge"
+      InstanceType: "t2.micro"
+      #InstanceType: "g4dn.xlarge"
       KeyName: !Sub "aws.dev.ec2.win.ssh.key.${AWS::Region}"
       # .............................
       NetworkInterfaces:
@@ -137,7 +137,9 @@ Resources:
             $ProfileNamePathFirefox = Get-Item "$ProfilePathFirefox\*.v78-Restricted"
             $ArchivePathFirefox = Join-Path $FirefoxLocalPath $PrefixFirefox
             $ArchiveNamePathFirefox = Get-Item "$ArchivePathFirefox\firefox-profile*.zip"
-            Expand-Archive -LiteralPath $ArchiveNamePathFirefox -DestinationPath $ProfileNamePathFirefox
+            Expand-Archive -LiteralPath $ArchiveNamePathFirefox -DestinationPath $ProfileNamePathFirefox -Force
+            # Enable QUIC UDP transport protocol
+            #New-ItemProperty -Path "Registry::HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\connectivity" -Name "enable-quic-frontend" -PropertyType "DWord" -Value "1"
           </powershell>
       # .............................
 
