@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # debug options include -v -x
-# cfn-gpu-rig-cli.sh 
+# cfn-gpu-cli.sh 
 # A hardened, hightly available, Windows cloud gaming server cloudformation template composition.
 
 
@@ -65,7 +65,7 @@ done
 
 #-----------------------------
 # Request Project Name
-PROJECT_NAME="cfn-gpu-rig-cli"
+PROJECT_NAME="cfn-gpu-cli"
 while true
 do
   # -e : stdin from terminal
@@ -619,7 +619,7 @@ find -L ./firefox -type f -name "firefox-profile*.zip" ! -path "*/scratch/*" -pr
 # START   SSM AUTOMATION 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-# Check if SSM UpdateWindowsAmiaccomplishes is required
+# Check if SSM UpdateWindowsAmi accomplishes is required
 # USER_INPUT=<valid AMI_ID> = bypass SSM UpdateWindowsAmi Process
 # USER_INPUT=<none> = perform UpdateWindowsAmi Automation Process
 AMI_UPDATE=$(aws ec2 describe-images --filters "Name=tag:Name,Values=$PROJECT_NAME-ssm-update" \
@@ -725,7 +725,7 @@ done
 BUILD_COUNTER="stage1"
 # ___
 TEMPLATE_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}\
-.amazonaws.com/cfn-templates/cfn-gpu-rig-cli.yaml"
+.amazonaws.com/cfn-templates/cfn-gpu-cli.yaml"
 # ___
 STACK_POLICY_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}\
 .amazonaws.com/policies/cfn/${PROJECT_NAME}-policy-cfn${BUILD_COUNTER}-stack.json"

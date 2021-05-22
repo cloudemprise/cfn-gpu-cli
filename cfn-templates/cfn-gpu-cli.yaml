@@ -21,7 +21,7 @@ Parameters:
     Description: "The Name given to this Project."
     ConstraintDescription: "Name must satisfy S3 constraints."
     Type: String
-    Default: "cfn-gpu-rig-cli"
+    Default: "cfn-gpu-cli"
     MinLength: 3
     MaxLength: 63
     AllowedPattern:
@@ -113,7 +113,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-vpc.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-vpc.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -129,7 +129,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-vpc-nacl.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-vpc-nacl.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -157,7 +157,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-vpc-sg.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-vpc-sg.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -176,7 +176,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-pub.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-pub.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -202,7 +202,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-priv.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-priv.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -223,7 +223,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-lt.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-lt.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -242,7 +242,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-tg.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-tg.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -259,7 +259,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-sns.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-sns.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -276,7 +276,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-asg.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-asg.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -304,7 +304,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-ec2-nlb.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-nlb.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -330,7 +330,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-cw.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-cw.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName
@@ -347,7 +347,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-rig-cli-r53.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-r53.yaml"
       Parameters:
         ProjectName:
           !Ref ProjectName

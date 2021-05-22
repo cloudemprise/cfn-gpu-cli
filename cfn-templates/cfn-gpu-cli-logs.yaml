@@ -21,7 +21,7 @@ Parameters:
     Description: "The Name given to this Project."
     ConstraintDescription: "Name must satisfy S3 constraints."
     Type: String
-    Default: "cfn-gpu-rig-cli"
+    Default: "cfn-gpu-cli"
     MinLength: 3
     MaxLength: 63
     AllowedPattern:
@@ -134,7 +134,7 @@ Resources:
           Value: !Sub "${ProjectName}"
       # .............................
       DeliverLogsPermissionArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/flowlogsRole"
-      LogGroupName: "/cfn-gpu-rig-cli-flogs-manual"
+      LogGroupName: "/cfn-gpu-cli-flogs-manual"
       LogDestinationType: "cloud-watch-logs"
       #LogFormat: "${version} ${account-id} ${interface-id} ${srcaddr} ${dstaddr} ${srcport} ${dstport} ${protocol} ${packets} ${bytes} ${start} ${end} ${action} ${log-status}"
       MaxAggregationInterval: 600

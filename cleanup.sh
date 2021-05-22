@@ -1,6 +1,6 @@
 #!/bin/bash
 # debug options include -v -x
-# cfn-gpu-rig-cli.sh 
+# cfn-gpu-cli.sh 
 # A hardened, hightly available, cloud gaming Windows
 # server cloudformation template composition.
 
@@ -59,7 +59,7 @@ done
 
 #----------------------------------------------
 # Request Project Name
-PROJECT_NAME="cfn-gpu-rig-cli"
+PROJECT_NAME="cfn-gpu-cli"
 while true
 do
   # -e : stdin from terminal
@@ -139,7 +139,7 @@ done
 
 #----------------------------------------------
 # Delete Project Bucket 
-#PROJECT_BUCKET="s3://proj-cfn-gpu-rig-cli"
+#PROJECT_BUCKET="s3://proj-cfn-gpu-cli"
 if (aws s3 ls "s3://$PROJECT_BUCKET" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
     > /dev/null 2>&1)
 then
@@ -216,7 +216,7 @@ fi
 
 #----------------------------------------------
 # Delete SSM Update AMI  
-AMI_NAME="cfn-gpu-rig-cli-ssm-update"
+AMI_NAME="cfn-gpu-cli-ssm-update"
 AMI_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} --owners self --output text \
   --query 'Images[].ImageId' --profile "$AWS_PROFILE" --region "$AWS_REGION" 2> /dev/null)
 if [[ "$AMI_ID" != "" ]]
