@@ -183,7 +183,7 @@ fi
 
 #----------------------------------------------
 # Delete Project AMI  
-AMI_NAME="$PROJECT_NAME-gpu-build"
+AMI_NAME="$PROJECT_NAME-pub-build"
 AMI_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} --owners self --output text \
   --query 'Images[].ImageId' --profile "$AWS_PROFILE" --region "$AWS_REGION" 2> /dev/null)
 if [[ "$AMI_ID" != "" ]]
@@ -208,10 +208,10 @@ fi
 #.............................
 
 
+
 #!! COMMENT Construct Begins Here:
 : <<'END'
 #!! COMMENT BEGIN
-
 
 
 #----------------------------------------------
@@ -240,9 +240,11 @@ else
 fi
 #.............................
 
+
 #!! COMMENT END
 END
 #!! COMMENT Construct Ends Here:
+
 
 
 #!! COMMENT Construct Begins Here:

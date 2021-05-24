@@ -81,13 +81,9 @@ Resources:
       Tags:
         -
           Key: "Name"
-          Value: !Sub "${ProjectName}-gpu-build"
+          Value: !Sub "${ProjectName}-pub-build"
       # .............................
       AvailabilityZone: !Select [ "0", !GetAZs ]
-        #'Fn::Select':
-          #- '0'
-          #- 'Fn::GetAZs':
-              #Ref: 'AWS::Region'
       # .............................
       BlockDeviceMappings:
         -
@@ -126,20 +122,16 @@ Resources:
             - !Ref PublicSgResourceId
       # .............................
       UserData:
-        Fn::Base64: |
+        Fn::Base64: !Sub |
           <powershell>
             # Extract Firefox Hardened Profile
-            $NameOfProjBucket = "proj-cfn-gpu-cli-eu-central-1"
-            $FirefoxLocalPath = "C:\$NameOfProjBucket"
             $PrefixFirefox = "firefox"
-            Start-Process -FilePath "firefox.exe" -Verb runAs -Wait -ArgumentList '/CreateProfile v78-Restricted'
+            Start-Process firefox -ArgumentList '/CreateProfile v78-Restricted' -Verb runAs -Wait
             $ProfilePathFirefox = "C:\Users\Administrator\AppData\Roaming\Mozilla\Firefox\Profiles"
             $ProfileNamePathFirefox = Get-Item "$ProfilePathFirefox\*.v78-Restricted"
-            $ArchivePathFirefox = Join-Path $FirefoxLocalPath $PrefixFirefox
+            $ArchivePathFirefox = Join-Path $BucketLocalPath $PrefixFirefox
             $ArchiveNamePathFirefox = Get-Item "$ArchivePathFirefox\firefox-profile*.zip"
             Expand-Archive -LiteralPath $ArchiveNamePathFirefox -DestinationPath $ProfileNamePathFirefox -Force
-            # Enable QUIC UDP transport protocol
-            #New-ItemProperty -Path "Registry::HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\connectivity" -Name "enable-quic-frontend" -PropertyType "DWord" -Value "1"
           </powershell>
       # .............................
 

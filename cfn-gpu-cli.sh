@@ -292,7 +292,7 @@ find -L ./ssm/template* -type f ! -path "*/scratch/*" -print0 |
       sed -i "s/ProjectBucket/$PROJECT_BUCKET/" "$_"
       sed -i "s/ProjectName/$PROJECT_NAME/" "$_"
       sed -i "s/Region/$AWS_REGION/" "$_"
-      echo "Creating SSM Automation Powershell Script .....: $_"
+      echo "Creating SSM Run/Automation Artifact ..........: $_"
     fi
   done
 #.............................
@@ -570,9 +570,13 @@ else
 fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+#find /media/d/ -type f -size +50M ! \( -name "*deb" -o -name "*vmdk" \)
+
+find -L ./ssm -type f \( -name "${PROJECT_NAME}*.ps1" -o -name "${PROJECT_NAME}*.yml" \) \
+  ! -path "*/scratch/*" -print0 |
 #----------------------------------------------
 # Upload SSM PostUpdate Powershell Script to S3
-find -L ./ssm -type f -name "${PROJECT_NAME}*.ps1" ! -path "*/scratch/*" -print0 |
+#find -L ./ssm -type f -name "${PROJECT_NAME}*.ps1" ! -path "*/scratch/*" -print0 |
   while IFS= read -r -d '' FILE
   do
     if [[ ! -s "$FILE" ]]; then
@@ -649,16 +653,16 @@ do
       # Execute Automation Document to Update AMI
       SSM_AUTO_DOC="AWS-UpdateWindowsAmi"
       # ___
-      #SSM_AUTO_EC2="t2.micro"
-      SSM_AUTO_EC2="g4dn.xlarge"
+      SSM_AUTO_EC2="t2.micro"
+      #SSM_AUTO_EC2="g4dn.xlarge"
       # ___
       SSM_EC2_PROFILE="${PROJECT_NAME}-ec2-ssm-${AWS_REGION}"
       # ___
       SSM_SERVICE_ROLE="arn:aws:iam::$AWS_ACC_ID:role/ce/$PROJECT_NAME-ssm-automation-$AWS_REGION"
       # ___
-      SSM_PRE_UPDATE="Copy-S3Object -BucketName $PROJECT_BUCKET -KeyPrefix ssm -LocalFolder C:\\$PROJECT_BUCKET"
+      SSM_PRE_UPDATE="Copy-S3Object -BucketName $PROJECT_BUCKET -KeyPrefix ssm -LocalFolder C:\\$PROJECT_BUCKET\\ssm"
       #---
-      SSM_POST_UPDATE="C:\\$PROJECT_BUCKET\\$PROJECT_NAME-postupdate.ps1"
+      SSM_POST_UPDATE="C:\\$PROJECT_BUCKET\\ssm\\$PROJECT_NAME-ssm-update-ami.ps1"
       # ___
       COMMAND_ID=$(aws ssm start-automation-execution --document-name="$SSM_AUTO_DOC"     \
         --query 'AutomationExecutionId' --profile "$AWS_PROFILE" --region "$AWS_REGION"   \
@@ -830,7 +834,7 @@ echo "Public Subnet EC2 Instance State ..............: OK"
 # Wait for SSM Agent to initialise 
 CHECK_ID_SSM=""
 CHECK_ID_SSM=$(aws ssm describe-instance-information --query 'InstanceInformationList[].InstanceId' \
-  --output text --filters "Key=tag:Name,Values=${PROJECT_NAME}-gpu-build" --profile "$AWS_PROFILE" \
+  --output text --filters "Key=tag:Name,Values=${PROJECT_NAME}-pub-build" --profile "$AWS_PROFILE" \
   --region "$AWS_REGION")
 #.............................
 if [[ $? -eq 0 ]]; then
@@ -843,7 +847,7 @@ if [[ $? -eq 0 ]]; then
       printf '.'
       CHECK_ID_SSM=$(aws ssm describe-instance-information --profile "$AWS_PROFILE"         \
         --region "$AWS_REGION" --query 'InstanceInformationList[].InstanceId' --output text \
-        --filters "Key=tag:Name,Values=${PROJECT_NAME}-gpu-build")
+        --filters "Key=tag:Name,Values=${PROJECT_NAME}-pub-build")
   done
   printf '\n'
   echo "SSM Agent detected on Instance with ID ........: $CHECK_ID_SSM"
@@ -853,51 +857,25 @@ else
 fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+
+
+#----------------------------------------------
+# Grab the Windows User Admin Password
+
 # ?????????????????????????????????????????
 # CONSIDER LOCAL PASSWORD DECRYPTION HERE
 # ?????????????????????????????????????????
 
-#----------------------------------------------
-# Grab the Windows User Admin Password
-INSTANCE_PUB_PASSWD=$(aws ec2 get-password-data --instance-id "$INSTANCE_PUB_ID"            \
-  --priv-launch-key "./ssh/aws.dev.ec2.win.ssh.key.$AWS_REGION.pem" --query 'PasswordData'  \
-  --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
-echo "Retrieving Public Instance Admin Password .....: $INSTANCE_PUB_PASSWD"
-echo "$INSTANCE_PUB_PASSWD" > "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
+#INSTANCE_PUB_PASSWD=$(aws ec2 get-password-data --instance-id "$INSTANCE_PUB_ID"            \
+#  --priv-launch-key "./ssh/aws.dev.ec2.win.ssh.key.$AWS_REGION.pem" --query 'PasswordData'  \
+#  --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+#echo "Retrieving Public Instance Admin Password .....: $INSTANCE_PUB_PASSWD"
+#echo "$INSTANCE_PUB_PASSWD" > "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
 # password file readonly
-chmod 600 "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
+#chmod 600 "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-#----------------------------------------------
-# Execute SSM AWSEC2Launch-RunMigration Document
-echo "Will now perform SSM EC2Launch Migration on ...: $INSTANCE_PUB_ID"
-# ___
-# Execute Automation Document to Update AMI
-SSM_AUTO_DOC="AWSEC2Launch-RunMigration"
-# ___
-COMMAND_ID=$(aws ssm send-command --document-name="$SSM_AUTO_DOC" --document-version '$DEFAULT' \
-  --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-  --query 'Command.CommandId' --output text --timeout-seconds 600)
-# ___
-if [[ $? -eq 0 ]]; then
-  echo "SSM RunCommand Execution Command ID ...........: $COMMAND_ID"
-  CHECK_STATUS=$(aws ssm list-command-invocations --command-id "$COMMAND_ID" --output text \
-    --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-    --query 'CommandInvocations[].Status')
-  echo "SSM RunCommand Execution Status ...............: $CHECK_STATUS"
-  while [[ $CHECK_STATUS == "InProgress" ]]; do
-    printf '.'
-    sleep 3
-    CHECK_STATUS=$(aws ssm list-command-invocations --command-id "$COMMAND_ID" --output text \
-      --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-      --query 'CommandInvocations[].Status')
-  done
-  printf '\n'
-  [[ $CHECK_STATUS == "Failed" ]] && \
-  { echo "SSM Failed to Execute EC2Launch Migration .....: $COMMAND_ID"; exit 1; } \
-  || { echo "SSM RunCommand Execution Status ...............: $CHECK_STATUS"; }
-fi
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 
 #----------------------------------------------
 # Execute SSM AWSEC2-RunSysprep Document
@@ -950,7 +928,7 @@ echo "Public Instances have now stopped .............: $INSTANCE_PUB_ID "
 # Create Golden AMI
 echo "Initiate AMI Creation Public EC2 Instance .....: "
 AMI_IMAGE_PUB=$(aws ec2 create-image --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
-  --name "${PROJECT_NAME}-gpu-build" --description "${PROJECT_NAME}-gpu-build-ami" \
+  --name "${PROJECT_NAME}-pub-build" --description "${PROJECT_NAME}-pub-build-ami" \
   --output text  --region "$AWS_REGION")
 echo "Waiting for AMI Creation to complete ..........: $AMI_IMAGE_PUB"
 # ___
@@ -969,7 +947,7 @@ fi
 
 #----------------------------------------------
 # Give AMI a Name Tag
-aws ec2 create-tags --resources "$AMI_IMAGE_PUB" --tags Key=Name,Value="${PROJECT_NAME}-gpu-build" \
+aws ec2 create-tags --resources "$AMI_IMAGE_PUB" --tags Key=Name,Value="${PROJECT_NAME}-pub-build" \
   --profile "$AWS_PROFILE" --region "$AWS_REGION"
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -997,7 +975,7 @@ $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 
 
 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-# START   CLOUDFORMATION STACK CREATION STAGE2
+# START   CLOUDFORMATION STACK CREATION STAGE3
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 BUILD_COUNTER="stage3"
@@ -1071,22 +1049,80 @@ $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 #----------------------------------------------
-INSTANCE_PUB_ID=$(aws ec2 describe-instances --query 'Reservations[].Instances[].InstanceId' \
-  --filters "Name=tag:Name,Values=${PROJECT_NAME}-autoscale-grp" --output text \
-  --profile "$AWS_PROFILE" --region "$AWS_REGION")
-echo "Gaming Server EC2 Instance ID .................: $INSTANCE_PUB_ID"
+FILTER1="Name=tag:Name,Values=${PROJECT_NAME}-autoscale-grp"
+FILTER2="Name=instance-state-name,Values=running"
+INSTANCE_LT_ID=$(aws ec2 describe-instances --query 'Reservations[].Instances[].InstanceId' \
+  --filters "$FILTER1" "$FILTER2" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+echo "Gaming Server EC2 Instance ID .................: $INSTANCE_LT_ID"
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-
-# ?????????????????????????????????????????
-# Need to refine this so as to exclued taged terminated instances.
-# ?????????????????????????????????????????
 #----------------------------------------------
 # Grab the DNS of the ec2 instances for further processing
-INSTANCE_PUB_DNS=$(aws ec2 describe-instances --instance-ids "$INSTANCE_PUB_ID" \
+INSTANCE_PUB_DNS=$(aws ec2 describe-instances --instance-ids "$INSTANCE_LT_ID" \
     --query 'Reservations[].Instances[].PublicDnsName' --output text            \
     --profile  "$AWS_PROFILE" --region "$AWS_REGION")
 echo "Gaming Server EC2 Instance DNS ................: $INSTANCE_PUB_DNS"
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#----------------------------------------------
+# Validity Check. Wait for instance status ok before moving on.
+echo "Waiting on Instance Status ok .................: $INSTANCE_LT_ID"
+CHECK_INSTANCE_STATUS=$(aws ec2 describe-instance-status --instance-ids "$INSTANCE_LT_ID"   \
+  --query 'InstanceStatuses[0].InstanceStatus.Status' --output text --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION")
+while [[ $CHECK_INSTANCE_STATUS != "ok" ]]
+do
+    # Wait 3 seconds and then check stack status again
+    sleep 3
+    printf '.'
+    CHECK_INSTANCE_STATUS=$(aws ec2 describe-instance-status --instance-ids "$INSTANCE_LT_ID"   \
+      --query 'InstanceStatuses[0].InstanceStatus.Status' --output text --profile "$AWS_PROFILE" \
+      --region "$AWS_REGION")
+done
+printf '\n'
+echo "Autoscaling Launch Template Instance State ....: OK"
+#-----------------------------
+
+#----------------------------------------------
+# Wait for SSM Agent to initialise 
+CHECK_ID_SSM=""
+CHECK_ID_SSM=$(aws ssm describe-instance-information --query 'InstanceInformationList[].InstanceId' \
+  --output text --filters "Key=tag:Name,Values=${PROJECT_NAME}-autoscale-grp" --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION")
+#.............................
+if [[ $? -eq 0 ]]; then
+  # Wait for detection to complete
+  echo "Waiting for SSM Agent to be Dectected .........: "
+  while [[ $CHECK_ID_SSM == "" ]]
+  do
+      # Wait 3 seconds and then check stack status again
+      sleep 3
+      printf '.'
+      CHECK_ID_SSM=$(aws ssm describe-instance-information --profile "$AWS_PROFILE"         \
+        --region "$AWS_REGION" --query 'InstanceInformationList[].InstanceId' --output text \
+        --filters "Key=tag:Name,Values=${PROJECT_NAME}-autoscale-grp")
+  done
+  printf '\n'
+  echo "SSM Agent detected on Instance with ID ........: $CHECK_ID_SSM"
+else
+  echo "Error in SSM Agent Detection ..................: $INSTANCE_LT_ID"
+  exit 1
+fi
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+# ?????????????????????????????????????????
+# CONSIDER LOCAL PASSWORD DECRYPTION HERE
+# ?????????????????????????????????????????
+
+#----------------------------------------------
+# Grab the Windows User Admin Password
+INSTANCE_LT_PASSWD=$(aws ec2 get-password-data --instance-id "$INSTANCE_LT_ID"            \
+  --priv-launch-key "./ssh/aws.dev.ec2.win.ssh.key.$AWS_REGION.pem" --query 'PasswordData'  \
+  --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+echo "Retrieving Autoscaling Instance Admin Password : $INSTANCE_LT_PASSWD"
+echo "$INSTANCE_LT_PASSWD" > "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
+# password file readonly
+chmod 600 "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -1103,6 +1139,7 @@ $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 
 #.............................
 
 
+
 #!! COMMENT Construct Begins Here:
 : <<'END'
 #!! COMMENT BEGIN
@@ -1110,4 +1147,3 @@ $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 
 #!! COMMENT END
 END
 #!! COMMENT Construct Ends Here:
-

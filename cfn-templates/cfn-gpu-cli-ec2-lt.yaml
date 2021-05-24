@@ -84,24 +84,20 @@ Resources:
             #  hibernate | stop | terminate
             InstanceInterruptionBehavior: "terminate"
         # .............................
-        #MetadataOptions:
-        #  HttpEndpoint: "enabled"
+        MetadataOptions:
+          HttpEndpoint: "enabled"
           #HttpTokens: "required"
-        #  HttpTokens: "optional"
-        #  HttpPutResponseHopLimit: 1
+          HttpTokens: "optional"
+          HttpPutResponseHopLimit: 1
         # .............................
-        #UserData:
-        #  Fn::Base64: |
-        #    version: 1.0
-        #    tasks:
-        #    - task: executeScript
-        #      inputs:
-        #      - frequency: always
-        #        type: powershell
-        #        runAs: localSystem
-        #        content: |-
-        #          New-Item -Path 'C:\PowerShellTest.txt' -ItemType File
-        #          Set-Content 'C:\PowerShellTest.txt' "hello world"
+        UserData:
+          Fn::Base64: !Sub |
+            <powershell>
+              # Enable QUIC UDP transport protocol
+              New-ItemProperty -Path "Registry::HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\connectivity" -Name "enable-quic-frontend" -PropertyType "DWord" -Value "1"
+              Restart-Service -Name "dcvserver" -Force
+              Restart-Service -Name "dcvserver" -Force
+            </powershell>
         # .............................
 
 # ==========================================
