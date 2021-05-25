@@ -858,62 +858,10 @@ fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
-
-#----------------------------------------------
-# Grab the Windows User Admin Password
-
 # ?????????????????????????????????????????
-# CONSIDER LOCAL PASSWORD DECRYPTION HERE
+# CONSIDER INCLUDING TIME WAIT TICK HERE FOR INSTANCE STOP
 # ?????????????????????????????????????????
 
-#INSTANCE_PUB_PASSWD=$(aws ec2 get-password-data --instance-id "$INSTANCE_PUB_ID"            \
-#  --priv-launch-key "./ssh/aws.dev.ec2.win.ssh.key.$AWS_REGION.pem" --query 'PasswordData'  \
-#  --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
-#echo "Retrieving Public Instance Admin Password .....: $INSTANCE_PUB_PASSWD"
-#echo "$INSTANCE_PUB_PASSWD" > "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
-# password file readonly
-#chmod 600 "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-
-
-#----------------------------------------------
-# Execute SSM AWSEC2-RunSysprep Document
-echo "Will now perform SSM EC2 Run Sysprep on .......: $INSTANCE_PUB_ID"
-# ___
-# Execute Automation Document to Update AMI
-SSM_AUTO_DOC="AWSEC2-RunSysprep"
-# ___
-COMMAND_ID=$(aws ssm send-command --document-name="$SSM_AUTO_DOC" --document-version '$DEFAULT' \
-  --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-  --query 'Command.CommandId' --output text --timeout-seconds 600)
-# ___
-if [[ $? -eq 0 ]]; then
-  echo "SSM RunCommand Execution Command ID ...........: $COMMAND_ID"
-  CHECK_STATUS=$(aws ssm list-command-invocations --command-id "$COMMAND_ID" --output text \
-    --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-    --query 'CommandInvocations[].Status')
-  echo "SSM RunCommand Execution Status ...............: $CHECK_STATUS"
-  while [[ $CHECK_STATUS == "InProgress" ]]; do
-    printf '.'
-    sleep 3
-    CHECK_STATUS=$(aws ssm list-command-invocations --command-id "$COMMAND_ID" --output text \
-      --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-      --query 'CommandInvocations[].Status')
-  done
-  printf '\n'
-  [[ $CHECK_STATUS == "Failed" ]] && \
-  { echo "SSM Failed to Execute EC2 Run Sysprep on ......: $COMMAND_ID"; exit 1; } \
-  || { echo "SSM RunCommand Execution Status ...............: $CHECK_STATUS"; }
-fi
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-#----------------------------------------------
-# For faster image creation Shuntdown instance 
-aws ec2 stop-instances --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
-  --region "$AWS_REGION" > /dev/null
-echo "Stopping Public Instance Initiated ............: $INSTANCE_PUB_ID"
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------
 # Wait
@@ -921,7 +869,7 @@ aws ec2 wait instance-stopped --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_
   --region "$AWS_REGION" &
 P1=$!
 wait $P1
-echo "Public Instances have now stopped .............: $INSTANCE_PUB_ID "
+echo "The Sysprep Build Instance has now stopped ....: $INSTANCE_PUB_ID "
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------

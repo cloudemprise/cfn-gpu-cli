@@ -123,18 +123,33 @@ Resources:
       # .............................
       UserData:
         Fn::Base64: !Sub |
-          <powershell>
-            # Extract Firefox Hardened Profile
-            $PrefixFirefox = "firefox"
-            Start-Process firefox -ArgumentList '/CreateProfile v78-Restricted' -Verb runAs -Wait
-            $ProfilePathFirefox = "C:\Users\Administrator\AppData\Roaming\Mozilla\Firefox\Profiles"
-            $ProfileNamePathFirefox = Get-Item "$ProfilePathFirefox\*.v78-Restricted"
-            $ArchivePathFirefox = Join-Path $BucketLocalPath $PrefixFirefox
-            $ArchiveNamePathFirefox = Get-Item "$ArchivePathFirefox\firefox-profile*.zip"
-            Expand-Archive -LiteralPath $ArchiveNamePathFirefox -DestinationPath $ProfileNamePathFirefox -Force
-          </powershell>
+          version: 1.0
+          tasks:
+          - task: executeScript
+            inputs:
+            - frequency: once
+              type: powershell
+              runAs: admin
+              content: |-
+                $NameOfProjBucket = "proj-${ProjectName}-${AWS::Region}"
+                $BucketLocalPath = "C:\$NameOfProjBucket"
+                $PrefixFirefox = "firefox"
+                Start-Process firefox -ArgumentList '/CreateProfile v78-Restricted' -Wait
+                $ProfilePathFirefox = "C:\Users\Administrator\AppData\Roaming\Mozilla\Firefox\Profiles"
+                $ProfileNamePathFirefox = Get-Item "$ProfilePathFirefox\*.v78-Restricted"
+                $ArchivePathFirefox = Join-Path $BucketLocalPath $PrefixFirefox
+                $ArchiveNamePathFirefox = Get-Item "$ArchivePathFirefox\firefox-profile*.zip"
+                Expand-Archive -LiteralPath $ArchiveNamePathFirefox -DestinationPath $ProfileNamePathFirefox -Force
+          - task: sysprep
+            inputs:
+              clean: true
+              shutdown: true
+          - task: writeFile
+            inputs:
+            - frequency: once
+              destination: C:\Users\Administrator\Desktop\booted.txt
+              content: Windows Has Booted
       # .............................
-
 
 
 # ==========================================
