@@ -642,7 +642,7 @@ do
   then
     # A valid AMI ID was found. SSM UpdateWindowsAmi not needed
     AMI_UPDATE="$USER_INPUT"
-    echo "PreUpdated SSM AMI ID is valid ................: $AMI_UPDATE"
+    echo "Valid SSM PreUpdate AMI with ID confirmed .....: $AMI_UPDATE"
     AMI_LATEST="$AMI_UPDATE"
     break
   # ___
@@ -802,12 +802,12 @@ $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 
 INSTANCE_PUB_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
   --query "Stacks[].Outputs[?OutputKey == 'InstanceIdPublicBuild'].OutputValue"             \
   --profile "$AWS_PROFILE" --region "$AWS_REGION")
-echo "Public Subnet EC2 Instance ID .................: $INSTANCE_PUB_ID"
+echo "Golden AMI Build Stage EC2 Instance ID ........: $INSTANCE_PUB_ID"
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------
 # Validity Check. Wait for instance status ok before moving on.
-echo "Waiting on Instance Status ok .................: $INSTANCE_PUB_ID"
+echo "Waiting on Instance Status OK .................: "
 CHECK_INSTANCE_STATUS=$(aws ec2 describe-instance-status --instance-ids "$INSTANCE_PUB_ID"   \
   --query 'InstanceStatuses[0].InstanceStatus.Status' --output text --profile "$AWS_PROFILE" \
   --region "$AWS_REGION")
@@ -821,7 +821,7 @@ do
       --region "$AWS_REGION")
 done
 printf '\n'
-echo "Public Subnet EC2 Instance State ..............: OK"
+echo "Golden AMI Build Stage EC2 Instance State .....: $CHECK_INSTANCE_STATUS"
 #-----------------------------
 # Previous Solution:
 #aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
@@ -850,45 +850,64 @@ if [[ $? -eq 0 ]]; then
         --filters "Key=tag:Name,Values=${PROJECT_NAME}-pub-build")
   done
   printf '\n'
-  echo "SSM Agent detected on Instance with ID ........: $CHECK_ID_SSM"
+  echo "SSM Agent Detected on Instance with ID ........: $CHECK_ID_SSM"
 else
   echo "Error in SSM Agent Detection ..................: $INSTANCE_PUB_ID"
   exit 1
 fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-
-# ?????????????????????????????????????????
-# CONSIDER INCLUDING TIME WAIT TICK HERE FOR INSTANCE STOP
-# ?????????????????????????????????????????
-
-
+#----------------------------------------------
+# Sysprep will shutdown instance when complete. Wait for instance status stopped before moving on.
+echo "Waiting for Sysprep to shutdown Build Stage ...: "
+CHECK_INSTANCE_STATUS=$(aws ec2 describe-instances --instance-ids "$INSTANCE_PUB_ID"   \
+  --query 'Reservations[].Instances[].State.Name' --output text --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION")
+while [[ $CHECK_INSTANCE_STATUS != "stopped" ]]
+do
+    # Wait 3 seconds and then check stack status again
+    sleep 3
+    printf '.'
+    CHECK_INSTANCE_STATUS=$(aws ec2 describe-instances --instance-ids "$INSTANCE_PUB_ID"   \
+      --query 'Reservations[].Instances[].State.Name' --output text --profile "$AWS_PROFILE" \
+      --region "$AWS_REGION")
+done
+printf '\n'
+echo "Build Stage Instance Sysprep Status ...........: $CHECK_INSTANCE_STATUS "
+#-----------------------------
 #----------------------------------------------
 # Wait
-aws ec2 wait instance-stopped --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
-  --region "$AWS_REGION" &
-P1=$!
-wait $P1
-echo "The Sysprep Build Instance has now stopped ....: $INSTANCE_PUB_ID "
+#aws ec2 wait instance-stopped --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
+#  --region "$AWS_REGION" &
+#P1=$!
+#wait $P1
+#echo "The Sysprep Build Instance has now stopped ....: $INSTANCE_PUB_ID "
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------
 # Create Golden AMI
-echo "Initiate AMI Creation Public EC2 Instance .....: "
+echo "Will now start to create the Golden Image .....: "
 AMI_IMAGE_PUB=$(aws ec2 create-image --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
   --name "${PROJECT_NAME}-pub-build" --description "${PROJECT_NAME}-pub-build-ami" \
   --output text  --region "$AWS_REGION")
-echo "Waiting for AMI Creation to complete ..........: $AMI_IMAGE_PUB"
-# ___
-aws ec2 wait image-available --image-ids "$AMI_IMAGE_PUB" --profile "$AWS_PROFILE" \
-  --region "$AWS_REGION" &
-P1=$!
-wait $P1
-# ___
+#.............................
 if [[ $? -eq 0 ]]; then
-  echo "Public EC2 Instance AMI now available .........: $AMI_IMAGE_PUB "
+  # Wait for detection to complete
+  echo "Waiting for AMI Creation to complete ..........: $AMI_IMAGE_PUB"
+  CHECK_AMI_STATUS=$(aws ec2 describe-images --image-ids "$AMI_IMAGE_PUB" --output text \
+    --query 'Images[].State' --profile "$AWS_PROFILE" --region "$AWS_REGION")
+  while [[ $CHECK_AMI_STATUS != "available" ]]
+  do
+      # Wait 3 seconds and then check stack status again
+      sleep 3
+      printf '.'
+      CHECK_AMI_STATUS=$(aws ec2 describe-images --image-ids "$AMI_IMAGE_PUB" --output text \
+        --query 'Images[].State' --profile "$AWS_PROFILE" --region "$AWS_REGION")
+  done
+  printf '\n'
+  echo "Build Stage Golden Image Status ...............: $CHECK_AMI_STATUS "
 else
-  echo "Error! Public EC2 Instance AMI Creation Failed : $AMI_IMAGE_PUB"
+  echo "Error! Creation of Golden Image failed ........: $INSTANCE_PUB_ID"
   exit 1
 fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1014,7 +1033,7 @@ echo "Gaming Server EC2 Instance DNS ................: $INSTANCE_PUB_DNS"
 
 #----------------------------------------------
 # Validity Check. Wait for instance status ok before moving on.
-echo "Waiting on Instance Status ok .................: $INSTANCE_LT_ID"
+echo "Waiting on Autoscaling Instance Status ok .....: $INSTANCE_LT_ID"
 CHECK_INSTANCE_STATUS=$(aws ec2 describe-instance-status --instance-ids "$INSTANCE_LT_ID"   \
   --query 'InstanceStatuses[0].InstanceStatus.Status' --output text --profile "$AWS_PROFILE" \
   --region "$AWS_REGION")
@@ -1061,7 +1080,6 @@ fi
 # ?????????????????????????????????????????
 # CONSIDER LOCAL PASSWORD DECRYPTION HERE
 # ?????????????????????????????????????????
-
 #----------------------------------------------
 # Grab the Windows User Admin Password
 INSTANCE_LT_PASSWD=$(aws ec2 get-password-data --instance-id "$INSTANCE_LT_ID"            \
@@ -1071,6 +1089,15 @@ echo "Retrieving Autoscaling Instance Admin Password : $INSTANCE_LT_PASSWD"
 echo "$INSTANCE_LT_PASSWD" > "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
 # password file readonly
 chmod 600 "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#----------------------------------------------
+# Create RDP client configuration
+printf 'auto connect:i:1\n' > ./rdp/$PROJECT_NAME-$AWS_REGION-autoscale-grp.rdp
+printf 'full address:s:%s\n' "$INSTANCE_PUB_DNS" >> ./rdp/$PROJECT_NAME-$AWS_REGION-autoscale-grp.rdp
+printf 'username:s:Administrator\n' >> ./rdp/$PROJECT_NAME-$AWS_REGION-autoscale-grp.rdp
+printf 'password:s:%s\n' "$INSTANCE_LT_PASSWD" >> ./rdp/$PROJECT_NAME-$AWS_REGION-autoscale-grp.rdp
+chmod 600 "./rdp/$PROJECT_NAME-$AWS_REGION-autoscale-grp.rdp"
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
