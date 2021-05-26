@@ -131,7 +131,6 @@ Resources:
               type: powershell
               runAs: admin
               content: |-
-                # Preconfigured hardened firefox user profile
                 $NameOfProjBucket = "proj-${ProjectName}-${AWS::Region}"
                 $BucketLocalPath = "C:\$NameOfProjBucket"
                 $PrefixFirefox = "firefox"
@@ -141,7 +140,6 @@ Resources:
                 $ArchivePathFirefox = Join-Path $BucketLocalPath $PrefixFirefox
                 $ArchiveNamePathFirefox = Get-Item "$ArchivePathFirefox\firefox-profile*.zip"
                 Expand-Archive -LiteralPath $ArchiveNamePathFirefox -DestinationPath $ProfileNamePathFirefox -Force
-                # Enable the NICE DCV QUIC UDP transport protocol
                 New-ItemProperty -Path "Registry::HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\connectivity" -Name "enable-quic-frontend" -PropertyType "DWord" -Value "1"
                 Restart-Service -Name "dcvserver" -Force
                 Restart-Service -Name "dcvserver" -Force

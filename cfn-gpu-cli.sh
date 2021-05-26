@@ -425,10 +425,10 @@ for PREFIX in SSM PUB LT; do
       echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
       # ___
       # Managed Policy Power User !!! TEMPORARY NEED TO REFINE AFTER DEBUG
-      EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/PowerUserAccess"
-      aws iam attach-role-policy --role-name "${!VAR_NAME}" \
-        --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
+      #EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/PowerUserAccess"
+      #aws iam attach-role-policy --role-name "${!VAR_NAME}" \
+      #  --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      #echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
       # ...
   elif [[ $PREFIX == "PUB" ]]; then
       # Add access to project bucket
@@ -450,10 +450,11 @@ for PREFIX in SSM PUB LT; do
       echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
       # ___
       # Managed Policy SSM Automation
-      EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-      aws iam attach-role-policy --role-name "${!VAR_NAME}" \
-        --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
+      # Include this policy if you need to Run SSM Documents on the Build Stage Instance
+      #EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      #aws iam attach-role-policy --role-name "${!VAR_NAME}" \
+      #  --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      #echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
       # ...
   else 
       # Add access to project bucket
@@ -475,10 +476,11 @@ for PREFIX in SSM PUB LT; do
       echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
       # ___
       # Managed Policy SSM Automation
-      EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-      aws iam attach-role-policy --role-name "${!VAR_NAME}" \
-        --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-      echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
+      # Include this policy if you need to Run SSM Documents on the Autoscaled Instance
+      #EC2_ROLE_MANAGED_ARN="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      #aws iam attach-role-policy --role-name "${!VAR_NAME}" \
+      #  --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+      #echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
       # ...
   fi
   # ___
@@ -831,30 +833,32 @@ echo "Golden AMI Build Stage EC2 Instance State .....: $CHECK_INSTANCE_STATUS"
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------
-# Wait for SSM Agent to initialise 
-CHECK_ID_SSM=""
-CHECK_ID_SSM=$(aws ssm describe-instance-information --query 'InstanceInformationList[].InstanceId' \
-  --output text --filters "Key=tag:Name,Values=${PROJECT_NAME}-pub-build" --profile "$AWS_PROFILE" \
-  --region "$AWS_REGION")
+# Wait for SSM Agent to initialise:
+# For this routine to execute correctly it requires that the Build 
+# Stage Instance Profile has the SSM Automation Managed Policy attached
+#CHECK_ID_SSM=""
+#CHECK_ID_SSM=$(aws ssm describe-instance-information --query 'InstanceInformationList[].InstanceId' \
+#  --output text --filters "Key=tag:Name,Values=${PROJECT_NAME}-pub-build" --profile "$AWS_PROFILE" \
+#  --region "$AWS_REGION")
 #.............................
-if [[ $? -eq 0 ]]; then
-  # Wait for detection to complete
-  echo "Waiting for SSM Agent to be Dectected .........: "
-  while [[ $CHECK_ID_SSM == "" ]]
-  do
-      # Wait 3 seconds and then check stack status again
-      sleep 3
-      printf '.'
-      CHECK_ID_SSM=$(aws ssm describe-instance-information --profile "$AWS_PROFILE"         \
-        --region "$AWS_REGION" --query 'InstanceInformationList[].InstanceId' --output text \
-        --filters "Key=tag:Name,Values=${PROJECT_NAME}-pub-build")
-  done
-  printf '\n'
-  echo "SSM Agent Detected on Instance with ID ........: $CHECK_ID_SSM"
-else
-  echo "Error in SSM Agent Detection ..................: $INSTANCE_PUB_ID"
-  exit 1
-fi
+#if [[ $? -eq 0 ]]; then
+#  # Wait for detection to complete
+#  echo "Waiting for SSM Agent to be Dectected .........: "
+#  while [[ $CHECK_ID_SSM == "" ]]
+#  do
+#      # Wait 3 seconds and then check stack status again
+#      sleep 3
+#      printf '.'
+#      CHECK_ID_SSM=$(aws ssm describe-instance-information --profile "$AWS_PROFILE"         \
+#        --region "$AWS_REGION" --query 'InstanceInformationList[].InstanceId' --output text \
+#        --filters "Key=tag:Name,Values=${PROJECT_NAME}-pub-build")
+#  done
+#  printf '\n'
+#  echo "SSM Agent Detected on Instance with ID ........: $CHECK_ID_SSM"
+#else
+#  echo "Error in SSM Agent Detection ..................: $INSTANCE_PUB_ID"
+#  exit 1
+#fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------
@@ -875,7 +879,7 @@ done
 printf '\n'
 echo "Build Stage Instance Sysprep Status ...........: $CHECK_INSTANCE_STATUS "
 #-----------------------------
-#----------------------------------------------
+# Previous Solution:
 # Wait
 #aws ec2 wait instance-stopped --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
 #  --region "$AWS_REGION" &
@@ -1052,40 +1056,54 @@ echo "Autoscaling Launch Template Instance State ....: OK"
 
 #----------------------------------------------
 # Wait for SSM Agent to initialise 
-CHECK_ID_SSM=""
-CHECK_ID_SSM=$(aws ssm describe-instance-information --query 'InstanceInformationList[].InstanceId' \
-  --output text --filters "Key=tag:Name,Values=${PROJECT_NAME}-autoscale-grp" --profile "$AWS_PROFILE" \
-  --region "$AWS_REGION")
+# For this routine to execute correctly it requires that the Autoscaling 
+# Instance Profile has the SSM Automation Managed Policy attached
+#CHECK_ID_SSM=""
+#CHECK_ID_SSM=$(aws ssm describe-instance-information --query 'InstanceInformationList[].InstanceId' \
+#  --output text --filters "Key=tag:Name,Values=${PROJECT_NAME}-autoscale-grp" --profile "$AWS_PROFILE" \
+#  --region "$AWS_REGION")
 #.............................
-if [[ $? -eq 0 ]]; then
-  # Wait for detection to complete
-  echo "Waiting for SSM Agent to be Dectected .........: "
-  while [[ $CHECK_ID_SSM == "" ]]
-  do
-      # Wait 3 seconds and then check stack status again
-      sleep 3
-      printf '.'
-      CHECK_ID_SSM=$(aws ssm describe-instance-information --profile "$AWS_PROFILE"         \
-        --region "$AWS_REGION" --query 'InstanceInformationList[].InstanceId' --output text \
-        --filters "Key=tag:Name,Values=${PROJECT_NAME}-autoscale-grp")
-  done
-  printf '\n'
-  echo "SSM Agent detected on Instance with ID ........: $CHECK_ID_SSM"
-else
-  echo "Error in SSM Agent Detection ..................: $INSTANCE_LT_ID"
-  exit 1
-fi
+#if [[ $? -eq 0 ]]; then
+#  # Wait for detection to complete
+#  echo "Waiting for SSM Agent to be Dectected .........: "
+#  while [[ $CHECK_ID_SSM == "" ]]
+#  do
+#      # Wait 3 seconds and then check stack status again
+#      sleep 3
+#      printf '.'
+#      CHECK_ID_SSM=$(aws ssm describe-instance-information --profile "$AWS_PROFILE"         \
+#        --region "$AWS_REGION" --query 'InstanceInformationList[].InstanceId' --output text \
+#        --filters "Key=tag:Name,Values=${PROJECT_NAME}-autoscale-grp")
+#  done
+#  printf '\n'
+#  echo "SSM Agent detected on Instance with ID ........: $CHECK_ID_SSM"
+#else
+#  echo "Error in SSM Agent Detection ..................: $INSTANCE_LT_ID"
+#  exit 1
+#fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 # ?????????????????????????????????????????
 # CONSIDER LOCAL PASSWORD DECRYPTION HERE
 # ?????????????????????????????????????????
+
 #----------------------------------------------
 # Grab the Windows User Admin Password
-INSTANCE_LT_PASSWD=$(aws ec2 get-password-data --instance-id "$INSTANCE_LT_ID"            \
+echo "Wait Instance Password to become available ....: "
+INSTANCE_LT_PASSWD=$(aws ec2 get-password-data --instance-id "$INSTANCE_LT_ID" --output text \
   --priv-launch-key "./ssh/aws.dev.ec2.win.ssh.key.$AWS_REGION.pem" --query 'PasswordData'  \
-  --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
-echo "Retrieving Autoscaling Instance Admin Password : $INSTANCE_LT_PASSWD"
+  --profile "$AWS_PROFILE" --region "$AWS_REGION")
+while [[ -z "$INSTANCE_LT_PASSWD" ]]
+do
+    # Wait 3 seconds and then check stack status again
+    sleep 3
+    printf '.'
+    INSTANCE_LT_PASSWD=$(aws ec2 get-password-data --instance-id "$INSTANCE_LT_ID" --output text \
+      --priv-launch-key "./ssh/aws.dev.ec2.win.ssh.key.$AWS_REGION.pem" --query 'PasswordData'  \
+      --profile "$AWS_PROFILE" --region "$AWS_REGION")
+done
+printf '\n'
+echo "Autoscaling Instance Admin Password retrived ..: $INSTANCE_LT_PASSWD"
 echo "$INSTANCE_LT_PASSWD" > "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"
 # password file readonly
 chmod 600 "./rdp/$PROJECT_NAME-$AWS_REGION.passwd"

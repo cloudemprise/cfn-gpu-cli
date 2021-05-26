@@ -213,8 +213,6 @@ fi
 #!! COMMENT BEGIN
 
 
-
-
 #----------------------------------------------
 # Delete SSM Update AMI  
 AMI_NAME="cfn-gpu-cli-ssm-update"
