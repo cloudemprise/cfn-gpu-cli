@@ -107,6 +107,7 @@ Resources:
       # .............................
       IamInstanceProfile: !Sub "${ProjectName}-ec2-pub-${AWS::Region}"
       ImageId: !Ref PublicAmiId
+      #InstanceType: "t2.nano"
       InstanceType: "t2.micro"
       #InstanceType: "g4dn.xlarge"
       KeyName: !Sub "aws.dev.ec2.win.ssh.key.${AWS::Region}"
@@ -131,6 +132,7 @@ Resources:
               type: powershell
               runAs: admin
               content: |-
+                # Install Hardened Firefox Profile
                 $NameOfProjBucket = "proj-${ProjectName}-${AWS::Region}"
                 $BucketLocalPath = "C:\$NameOfProjBucket"
                 $PrefixFirefox = "firefox"
@@ -140,18 +142,14 @@ Resources:
                 $ArchivePathFirefox = Join-Path $BucketLocalPath $PrefixFirefox
                 $ArchiveNamePathFirefox = Get-Item "$ArchivePathFirefox\firefox-profile*.zip"
                 Expand-Archive -LiteralPath $ArchiveNamePathFirefox -DestinationPath $ProfileNamePathFirefox -Force
+                # Enable DCV UDP Protocol
                 New-ItemProperty -Path "Registry::HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\connectivity" -Name "enable-quic-frontend" -PropertyType "DWord" -Value "1"
+                Stop-Service -Name "dcvserver" -Force
+                (Get-Service dcvserver).WaitForStatus('Stopped')
                 Restart-Service -Name "dcvserver" -Force
-                Restart-Service -Name "dcvserver" -Force
-          - task: sysprep
-            inputs:
-              clean: true
-              shutdown: true
-          - task: writeFile
-            inputs:
-            - frequency: once
-              destination: C:\Users\Administrator\Desktop\booted.txt
-              content: Windows Has Booted
+                (Get-Service dcvserver).WaitForStatus('Running')
+                # Force Shutdown for Image Creation
+                Stop-Computer -ComputerName localhost -Force
       # .............................
 
 

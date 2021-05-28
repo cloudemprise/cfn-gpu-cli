@@ -109,7 +109,7 @@ Resources:
     Properties:
       # .............................
       Protocol: "TCP_UDP"
-      Port: 1194
+      Port: 8443
       LoadBalancerArn: !Ref GamingLoadBalancer
       # .............................
       DefaultActions:

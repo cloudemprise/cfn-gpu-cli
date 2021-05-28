@@ -93,10 +93,11 @@ Parameters:
 # ==========================================
 # Conditions: {}
 Conditions:
-  CreateResourcesStage1: !Equals [ !Ref BuildStep, "stage1"]
+  CreateResourcesStage1: !Equals [!Ref BuildStep, "stage1"]
   CreateResourcesStage2: !Equals [!Ref BuildStep, "stage2"]
   CreateResourcesStage3: !Equals [!Ref BuildStep, "stage3"]
   CreateResourcesStage4: !Equals [!Ref BuildStep, "stage4"]
+  CreateResourcesStage5: !Equals [!Ref BuildStep, "stage5"]
 
 
 # ==========================================
@@ -172,7 +173,7 @@ Resources:
   # --- Public EC2 Instance
   InstancePubDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: CreateResourcesStage1
+    Condition: CreateResourcesStage2
     # .............................
     Properties:
       TemplateURL:
@@ -197,7 +198,7 @@ Resources:
   # --- Private EC2 Instance
   InstancePrivDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage2"
+    Condition: "CreateResourcesStage3"
     DependsOn: "InstancePubDef"
     # .............................
     Properties:
@@ -219,7 +220,7 @@ Resources:
   # --- EC2 Launch Template
   LaunchTemplateDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage3"
+    Condition: "CreateResourcesStage4"
     # .............................
     Properties:
       TemplateURL:
@@ -238,7 +239,7 @@ Resources:
   # --- EC2 Target Group
   TargetGroupDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage3"
+    Condition: "CreateResourcesStage4"
     # .............................
     Properties:
       TemplateURL:
@@ -255,7 +256,7 @@ Resources:
   # --- SNS Topic for Alarms
   GamingSNSTopicDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage3"
+    Condition: "CreateResourcesStage4"
     # .............................
     Properties:
       TemplateURL:
@@ -272,7 +273,7 @@ Resources:
   # --- EC2 AutoScaling Group
   AutoScaleGroupDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage3"
+    Condition: "CreateResourcesStage4"
     # .............................
     Properties:
       TemplateURL:
@@ -299,7 +300,7 @@ Resources:
   # --- EC2 Network Load Balancer
   NetworkLoadBalancerDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage4"
+    Condition: "CreateResourcesStage5"
     DependsOn: "AutoScaleGroupDef"
     # .............................
     Properties:
@@ -323,7 +324,7 @@ Resources:
   # --- CloudWatch Alarm
   GamingCloudWatchAlarmDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage4"
+    Condition: "CreateResourcesStage5"
     DependsOn:
       - "TargetGroupDef"
       - "NetworkLoadBalancerDef"
@@ -343,7 +344,7 @@ Resources:
   # --- Route53 Record Set
   GamingR53RecordSetDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage4"
+    Condition: "CreateResourcesStage5"
     # .............................
     Properties:
       TemplateURL:
@@ -370,6 +371,13 @@ Outputs:
   # --- Public Build Instance ID
   InstanceIdPublicBuild:
     Description: "Public Build Instance ID"
-    Condition: "CreateResourcesStage1"
+    Condition: "CreateResourcesStage2"
     Value:
       !GetAtt InstancePubDef.Outputs.PubEC2InstanceId
+
+  # ------------------------------------------
+  # --- Public Subnet ID AZ-A
+  PublicSubnetIdA:
+    Description: "Public Subnet ID AZ-A"
+    Value:
+      !GetAtt VPCDef.Outputs.PublicSubnetIdA

@@ -64,7 +64,7 @@ Resources:
       UnhealthyThresholdCount: 3
       VpcId: !Ref VPCID
       TargetType: "instance"
-      Port: 1194
+      Port: 8443
       Protocol: "TCP_UDP"
       # .............................
       TargetGroupAttributes:
