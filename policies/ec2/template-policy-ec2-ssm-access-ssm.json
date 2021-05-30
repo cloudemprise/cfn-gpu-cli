@@ -2,10 +2,10 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "PkiCertAuthPrivateKeyPassphrase",
+      "Sid": "GamesServerAdministratorPassword",
       "Effect": "Allow",
       "Action": "ssm:GetParameters",
-      "Resource": "arn:aws:ssm:Region:577858752948:parameter/ProjectName/pki-cert-auth"
+      "Resource": "arn:aws:ssm:Region:RootAccount:parameter/ProjectName/user-admin-auth"
     }
   ]
 }

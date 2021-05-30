@@ -31,6 +31,7 @@ Parameters:
   # --- Email Endpoint Notifications
   GamingEmailAddrSNS:
     Description: "Gaming SNS Email Endpoint"
+    Default: "dh.info@posteo.net"
     Type: String
 
 
@@ -53,14 +54,17 @@ Resources:
     Type: "AWS::SNS::Topic"
     # .............................
     Properties:
-      DisplayName: "GamingNotice"
+      DisplayName: !Sub "Gaming Server Notice ${AWS::Region}"
       TopicName: !Sub "${ProjectName}-bulletin-${AWS::Region}"
-      KmsMasterKeyId: "alias/aws/sns"
       # .............................
       Tags:
         -
           Key: "Name"
           Value: !Sub "${ProjectName}-bulletin-${AWS::Region}"
+      # .............................
+      KmsMasterKeyId: "alias/aws/sns"
+      #KmsMasterKeyId: !Sub "alias/ce/kms/${AWS::Region}"
+
 
   # ------------------------------------------
   # --- SNS Subscription Definition

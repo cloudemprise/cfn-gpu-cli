@@ -89,7 +89,9 @@ Resources:
         -
           DeviceName: "/dev/sda1"
           Ebs:
-            Encrypted: false
+            Encrypted: true
+            KmsKeyId: !Sub "alias/ce/kms/${AWS::Region}"
+            #KmsKeyId: !Sub "alias/aws/ebs"
             #VolumeSize: 512
             VolumeSize: 50
             VolumeType: "gp2"
@@ -148,9 +150,11 @@ Resources:
                 (Get-Service dcvserver).WaitForStatus('Stopped')
                 Restart-Service -Name "dcvserver" -Force
                 (Get-Service dcvserver).WaitForStatus('Running')
+                # Wait Instance Status ok (IMDSv1)
+                $instanceId = Invoke-RestMethod -uri http://169.254.169.254/latest/meta-data/instance-id
+                while ((Get-EC2InstanceStatus -InstanceId $instanceId).Status.Status.Value -ne "ok") {Start-Sleep -Seconds 5}
                 # Force Shutdown for Image Creation
                 Stop-Computer -ComputerName localhost -Force
-      # .............................
 
 
 # ==========================================
