@@ -45,11 +45,11 @@ Parameters:
     Type: "AWS::EC2::Subnet::Id"
 
   # ------------------------------------------
-  LaunchTemplateIdASG:
-    Description: "Launch Template Id AutoScalingGroup"
+  GamingLaunchTemplateId:
+    Description: "Launch Template Id"
     Type: String
   # ------------------------------------------
-  TargetGroupArnNLB:
+  GamingTargetGroupArn:
     Description: "Network Loadbalancer Target Group ARN"
     Type: String
   # ------------------------------------------
@@ -73,21 +73,18 @@ Resources:
 
   # ------------------------------------------
   # --- Auto Scale Group
-  GamingEC2AutoScaleGrp:
+  GamingAutoscalingGroup:
     Type: "AWS::AutoScaling::AutoScalingGroup"
     # .............................
     Properties:
       # .............................
-      AutoScalingGroupName: !Sub "${ProjectName}-autoscale-group"
+      AutoScalingGroupName: !Sub "${ProjectName}-autoscale-grp"
       LaunchTemplate:
-        LaunchTemplateId: !Ref LaunchTemplateIdASG
+        LaunchTemplateId: !Ref GamingLaunchTemplateId
         Version: "1"
       # .............................
-      Tags:
-        -
-          Key: "Name"
-          Value: !Sub "${ProjectName}-autoscale-grp"
-          PropagateAtLaunch: true
+      TargetGroupARNs:
+        - !Ref GamingTargetGroupArn
       # .............................
       VPCZoneIdentifier:
         - !Ref PublicSubnetIdA
@@ -99,18 +96,22 @@ Resources:
       MinSize: "1"
       MaxSize: "1"
       # .............................
-      #HealthCheckType: "ELB"
-      HealthCheckType: "EC2"
-      HealthCheckGracePeriod: 300
-      # .............................
-      TargetGroupARNs:
-        - !Ref TargetGroupArnNLB
+      HealthCheckType: "ELB"
+      #HealthCheckType: "EC2"
+      # default = 0
+      HealthCheckGracePeriod: 150
       # .............................
       MetricsCollection:
         - Granularity: "1Minute"
           Metrics:
             - "GroupInServiceInstances"
             - "GroupTotalInstances"
+      # .............................
+      Tags:
+        -
+          Key: "Name"
+          Value: !Sub "${ProjectName}-autoscale-grp"
+          PropagateAtLaunch: true
       # .............................
       NotificationConfigurations:
         - NotificationTypes:

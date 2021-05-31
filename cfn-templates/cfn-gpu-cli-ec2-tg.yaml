@@ -54,31 +54,37 @@ Resources:
     Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
     # .............................
     Properties:
-      Name: !Sub "${ProjectName}-tgrp"
-      HealthCheckEnabled: true
-      HealthCheckIntervalSeconds: 30
-      HealthCheckPort: "80"
-      HealthCheckProtocol: "TCP"
-      HealthCheckTimeoutSeconds: 10
-      HealthyThresholdCount: 3
-      UnhealthyThresholdCount: 3
-      VpcId: !Ref VPCID
-      TargetType: "instance"
-      Port: 8443
-      Protocol: "TCP_UDP"
-      # .............................
-      TargetGroupAttributes:
-        -
-          Key: "proxy_protocol_v2.enabled"
-          Value: "false"
-        -
-          Key: "deregistration_delay.timeout_seconds"
-          Value: "240"
+      Name: !Sub "${ProjectName}-tgrp-${AWS::Region}"
       # .............................
       Tags:
         -
           Key: "Name"
           Value: "GamingTargetGroup"
+      # .............................
+      TargetGroupAttributes:
+        -
+          Key: "proxy_protocol_v2.enabled"
+          Value: "false"
+        - 
+          Key: "deregistration_delay.connection_termination.enabled"
+          Value: "false"
+        -
+          Key: "deregistration_delay.timeout_seconds"
+          Value: "300"
+      # .............................
+      VpcId: !Ref VPCID
+      TargetType: "instance"
+      Port: 8443
+      Protocol: "TCP_UDP"
+      # .............................
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPort: "8443"
+      HealthCheckProtocol: "TCP"
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+      # .............................
 
 
 # ==========================================
@@ -87,7 +93,7 @@ Outputs:
 
   # ------------------------------------------
   # --- EC2 Target Group ARN
-  GamingTargetGroupARN:
+  GamingTargetGroupArn:
     Description: "Network Loadbalancer Target Group ARN"
     Value: !Ref GamingTargetGroup
 

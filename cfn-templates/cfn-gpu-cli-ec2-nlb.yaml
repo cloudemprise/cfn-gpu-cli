@@ -48,7 +48,7 @@ Parameters:
 
   # ------------------------------------------
   # --- Network Loadbalancer Target Grp ARN
-  TargetGroupArnNLB:
+  GamingTargetGroupArn:
     Description: "Network Loadbalancer Target Group ARN"
     Type: String
 
@@ -73,21 +73,12 @@ Resources:
     # .............................
     Properties:
       # .............................
-      Name: !Sub "${ProjectName}-nlb"
+      Name: !Sub "${ProjectName}-nlb-${AWS::Region}"
       # .............................
       Tags:
         -
           Key: "Name"
-          Value: "GamingLoadBalancer"
-      # .............................
-      Type: "network"
-      Scheme: "internet-facing"
-      IpAddressType: "ipv4"
-      # .............................
-      Subnets:
-        - !Ref PublicSubnetIdA
-        - !Ref PublicSubnetIdB
-        - !Ref PublicSubnetIdC
+          Value: !Sub "GamingLoadBalancer-${AWS::Region}"
       # .............................
       LoadBalancerAttributes:
         -
@@ -99,6 +90,15 @@ Resources:
         -
           Key: "deletion_protection.enabled"
           Value: "false"
+      # .............................
+      Subnets:
+        - !Ref PublicSubnetIdA
+        - !Ref PublicSubnetIdB
+        - !Ref PublicSubnetIdC
+      # .............................
+      Type: "network"
+      Scheme: "internet-facing"
+      IpAddressType: "ipv4"
 
 
   # ------------------------------------------
@@ -114,7 +114,7 @@ Resources:
       # .............................
       DefaultActions:
         -
-          TargetGroupArn: !Ref TargetGroupArnNLB
+          TargetGroupArn: !Ref GamingTargetGroupArn
           Type: "forward"
 
 

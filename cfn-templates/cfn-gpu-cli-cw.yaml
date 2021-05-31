@@ -125,5 +125,5 @@ Outputs: {}
 # ------------------------------------------
 #  TargetGroupValue:
 #    Description: Launch Template ID
-#    Value: !Select [5, !Split [":", !Ref GamingTargetGroupARN]]
+#    Value: !Select [5, !Split [":", !Ref GamingTargetGroupArn]]
 # ------------------------------------------

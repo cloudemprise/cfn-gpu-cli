@@ -55,20 +55,28 @@ Resources:
 
   # ------------------------------------------
   # --- Public EC2 Instance
-  PublicEC2LaunchTemplate:
+  GamingLaunchTemplate:
     Type: "AWS::EC2::LaunchTemplate"
     # .............................
     Properties:
       # .............................
       LaunchTemplateName: !Sub "${ProjectName}-launch-template"
       # .............................
+      TagSpecifications:
+        - 
+          ResourceType: "launch-template"
+          Tags:
+            - 
+              Key: "Name"
+              Value: !Sub "${ProjectName}-launch-template"
+      # .............................
       LaunchTemplateData:
+        # .............................
         ImageId: !Ref PublicLtAmiId
         InstanceType: "t2.micro"
         #InstanceType: "g4dn.xlarge"
+        # .............................
         KeyName: !Sub "aws.dev.ec2.win.ssh.key.${AWS::Region}"
-        Monitoring:
-          Enabled: false
         SecurityGroupIds:
           - !Ref PublicSgResourceId
         # .............................
@@ -84,6 +92,9 @@ Resources:
             #  hibernate | stop | terminate
             InstanceInterruptionBehavior: "terminate"
         # .............................
+        Monitoring:
+          Enabled: false
+        # .............................
         MetadataOptions:
           HttpEndpoint: "enabled"
           HttpTokens: "required"
@@ -93,10 +104,7 @@ Resources:
         #UserData:
         #  Fn::Base64: !Sub |
         #    <powershell>
-              # Enable QUIC UDP transport protocol
-        #      New-ItemProperty -Path "Registry::HKEY_USERS\S-1-5-18\Software\GSettings\com\nicesoftware\dcv\connectivity" -Name "enable-quic-frontend" -PropertyType "DWord" -Value "1"
-        #      Restart-Service -Name "dcvserver" -Force
-        #      Restart-Service -Name "dcvserver" -Force
+        #      # Enter Commands Here.             
         #    </powershell>
         # .............................
 
@@ -106,6 +114,6 @@ Outputs:
 
   # ------------------------------------------
   # --- Launch Template ID
-  LaunchTemplateId:
+  GamingLaunchTemplateId:
     Description: "Launch Template ID"
-    Value: !Ref PublicEC2LaunchTemplate
+    Value: !Ref GamingLaunchTemplate

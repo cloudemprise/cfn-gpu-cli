@@ -43,7 +43,7 @@ Parameters:
 
   # ------------------------------------------
   # --- The Hosted Zone Domain Name
-  DomainName:
+  GamingDomainName:
     Description: "The Hosted Zone Apex Domain Name"
     ConstraintDescription: "Specify the domain name of the project"
     Type: String
@@ -53,7 +53,7 @@ Parameters:
 
   # ------------------------------------------
   # --- Route 53 Hosted Zone ID
-  DomainHostedZoneId:
+  GamingHostedZoneId:
     Description: "An Amazon Route 53 hosted zone ID"
     Type: "AWS::Route53::HostedZone::Id"
 
@@ -218,7 +218,7 @@ Resources:
 
   # ------------------------------------------
   # --- EC2 Launch Template
-  LaunchTemplateDef:
+  GamingLaunchTemplateDef:
     Type: "AWS::CloudFormation::Stack"
     Condition: "CreateResourcesStage4"
     # .............................
@@ -237,7 +237,7 @@ Resources:
 
   # ------------------------------------------
   # --- EC2 Target Group
-  TargetGroupDef:
+  GamingTargetGroupDef:
     Type: "AWS::CloudFormation::Stack"
     Condition: "CreateResourcesStage4"
     # .............................
@@ -287,10 +287,10 @@ Resources:
           !GetAtt VPCDef.Outputs.PublicSubnetIdB
         PublicSubnetIdC:
           !GetAtt VPCDef.Outputs.PublicSubnetIdC
-        LaunchTemplateIdASG:
-          !GetAtt LaunchTemplateDef.Outputs.LaunchTemplateId
-        TargetGroupArnNLB:
-          !GetAtt TargetGroupDef.Outputs.GamingTargetGroupARN
+        GamingLaunchTemplateId:
+          !GetAtt GamingLaunchTemplateDef.Outputs.GamingLaunchTemplateId
+        GamingTargetGroupArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingTargetGroupArn
         GamingSNSTopicARN:
           !GetAtt GamingSNSTopicDef.Outputs.GamingSNSTopicARN
       TimeoutInMinutes: 5
@@ -298,9 +298,9 @@ Resources:
 
   # ------------------------------------------
   # --- EC2 Network Load Balancer
-  NetworkLoadBalancerDef:
+  GamingLoadBalancerDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage5"
+    Condition: "CreateResourcesStage4"
     DependsOn: "AutoScaleGroupDef"
     # .............................
     Properties:
@@ -315,8 +315,8 @@ Resources:
           !GetAtt VPCDef.Outputs.PublicSubnetIdB
         PublicSubnetIdC:
           !GetAtt VPCDef.Outputs.PublicSubnetIdC
-        TargetGroupArnNLB:
-          !GetAtt TargetGroupDef.Outputs.GamingTargetGroupARN
+        GamingTargetGroupArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingTargetGroupArn
       TimeoutInMinutes: 5
 
 
@@ -326,8 +326,8 @@ Resources:
     Type: "AWS::CloudFormation::Stack"
     Condition: "CreateResourcesStage5"
     DependsOn:
-      - "TargetGroupDef"
-      - "NetworkLoadBalancerDef"
+      - "GamingTargetGroupDef"
+      - "GamingLoadBalancerDef"
     # .............................
     Properties:
       TemplateURL:
@@ -344,7 +344,7 @@ Resources:
   # --- Route53 Record Set
   GamingR53RecordSetDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage5"
+    Condition: "CreateResourcesStage4"
     # .............................
     Properties:
       TemplateURL:
@@ -353,13 +353,13 @@ Resources:
         ProjectName:
           !Ref ProjectName
         GamingDomainName:
-          !Ref DomainName
-        GamingR53HostedZoneId:
-          !Ref DomainHostedZoneId
+          !Ref GamingDomainName
+        GamingHostedZoneId:
+          !Ref GamingHostedZoneId
         GamingLoadBalancerDNS:
-          !GetAtt NetworkLoadBalancerDef.Outputs.GamingLoadBalancerDNS
+          !GetAtt GamingLoadBalancerDef.Outputs.GamingLoadBalancerDNS
         GamingLoadBalancerZoneId:
-          !GetAtt NetworkLoadBalancerDef.Outputs.GamingLoadBalancerZoneId
+          !GetAtt GamingLoadBalancerDef.Outputs.GamingLoadBalancerZoneId
       TimeoutInMinutes: 5
 
 

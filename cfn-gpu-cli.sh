@@ -748,8 +748,8 @@ echo "Cloudformation Stack Template URL .............: $TEMPLATE_URL"
 STACK_ID=$(aws cloudformation create-stack --stack-name "$STACK_NAME" --parameters      \
                 ParameterKey=ProjectName,ParameterValue="$PROJECT_NAME"                 \
                 ParameterKey=BuildStep,ParameterValue="$BUILD_COUNTER"                  \
-                ParameterKey=DomainName,ParameterValue="$AWS_DOMAIN_NAME"               \
-                ParameterKey=DomainHostedZoneId,ParameterValue="$HOSTED_ZONE_ID"        \
+                ParameterKey=GamingDomainName,ParameterValue="$AWS_DOMAIN_NAME"         \
+                ParameterKey=GamingHostedZoneId,ParameterValue="$HOSTED_ZONE_ID"        \
                 ParameterKey=SshAccessCIDR,ParameterValue="$SSH_ACCESS_CIDR"            \
                 ParameterKey=CurrentAmi,ParameterValue="$AMI_LATEST"                    \
                 ParameterKey=GamingEmailAddrSNS,ParameterValue="$USER_EMAIL"            \
@@ -903,8 +903,8 @@ aws cloudformation update-stack --stack-name "$STACK_ID" --parameters \
       ParameterKey=BuildStep,ParameterValue="$BUILD_COUNTER"          \
       ParameterKey=CurrentAmi,ParameterValue="$AMI_UPDATE"            \
       ParameterKey=ProjectName,UsePreviousValue=true                  \
-      ParameterKey=DomainName,UsePreviousValue=true                   \
-      ParameterKey=DomainHostedZoneId,UsePreviousValue=true           \
+      ParameterKey=GamingDomainName,UsePreviousValue=true             \
+      ParameterKey=GamingHostedZoneId,UsePreviousValue=true           \
       ParameterKey=SshAccessCIDR,UsePreviousValue=true                \
       ParameterKey=GamingEmailAddrSNS,UsePreviousValue=true           \
       --stack-policy-url "$STACK_POLICY_URL" --use-previous-template  \
@@ -1124,8 +1124,8 @@ aws cloudformation update-stack --stack-name "$STACK_ID" --parameters \
       ParameterKey=BuildStep,ParameterValue="$BUILD_COUNTER"          \
       ParameterKey=CurrentAmi,ParameterValue="$AMI_IMAGE_PUB"         \
       ParameterKey=ProjectName,UsePreviousValue=true                  \
-      ParameterKey=DomainName,UsePreviousValue=true                   \
-      ParameterKey=DomainHostedZoneId,UsePreviousValue=true           \
+      ParameterKey=GamingDomainName,UsePreviousValue=true             \
+      ParameterKey=GamingHostedZoneId,UsePreviousValue=true           \
       ParameterKey=SshAccessCIDR,UsePreviousValue=true                \
       ParameterKey=GamingEmailAddrSNS,UsePreviousValue=true           \
       --stack-policy-url "$STACK_POLICY_URL" --use-previous-template  \

@@ -38,7 +38,7 @@ Parameters:
     AllowedPattern:
       ^(([a-zA-Z]{1})|([a-zA-Z]{1}[a-zA-Z]{1})|([a-zA-Z]{1}[0-9]{1})|([0-9]{1}[a-zA-Z]{1})|([a-zA-Z0-9][a-zA-Z0-9-_]{1,61}[a-zA-Z0-9]))\.([a-zA-Z]{2,6}|[a-zA-Z0-9-]{2,30}\.[a-zA-Z]{2,3})$
   # .............................
-  GamingR53HostedZoneId:
+  GamingHostedZoneId:
     Description: "An Amazon Route 53 hosted zone ID"
     Type: AWS::Route53::HostedZone::Id
   # .............................
@@ -70,10 +70,10 @@ Resources:
     Type: "AWS::Route53::RecordSet"
     # .............................
     Properties:
-      Name: !Sub "${ProjectName}.${GamingDomainName}"
+      Name: !Sub "${ProjectName}-${AWS::Region}.${GamingDomainName}"
       Comment: "Gaming Route53 Record Set"
       Type: "A"
-      HostedZoneId: !Ref GamingR53HostedZoneId
+      HostedZoneId: !Ref GamingHostedZoneId
       AliasTarget:
         HostedZoneId: !Ref GamingLoadBalancerZoneId
         DNSName: !Ref GamingLoadBalancerDNS
