@@ -289,8 +289,10 @@ Resources:
           !GetAtt VPCDef.Outputs.PublicSubnetIdC
         GamingLaunchTemplateId:
           !GetAtt GamingLaunchTemplateDef.Outputs.GamingLaunchTemplateId
-        GamingTargetGroupArn:
-          !GetAtt GamingTargetGroupDef.Outputs.GamingTargetGroupArn
+        GamingDcvTargetGroupArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingDcvTargetGroupArn
+        GamingRdpTargetGroupArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingRdpTargetGroupArn
         GamingSNSTopicARN:
           !GetAtt GamingSNSTopicDef.Outputs.GamingSNSTopicARN
       TimeoutInMinutes: 5
@@ -315,8 +317,10 @@ Resources:
           !GetAtt VPCDef.Outputs.PublicSubnetIdB
         PublicSubnetIdC:
           !GetAtt VPCDef.Outputs.PublicSubnetIdC
-        GamingTargetGroupArn:
-          !GetAtt GamingTargetGroupDef.Outputs.GamingTargetGroupArn
+        GamingDcvTargetGroupArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingDcvTargetGroupArn
+        GamingRdpTargetGroupArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingRdpTargetGroupArn
       TimeoutInMinutes: 5
 
 

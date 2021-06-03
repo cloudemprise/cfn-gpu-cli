@@ -49,8 +49,12 @@ Parameters:
     Description: "Launch Template Id"
     Type: String
   # ------------------------------------------
-  GamingTargetGroupArn:
-    Description: "Network Loadbalancer Target Group ARN"
+  GamingDcvTargetGroupArn:
+    Description: "Network Loadbalancer DCV Target Group ARN"
+    Type: String
+  # ------------------------------------------
+  GamingRdpTargetGroupArn:
+    Description: "Network Loadbalancer RDP Target Group ARN"
     Type: String
   # ------------------------------------------
   GamingSNSTopicARN:
@@ -84,7 +88,8 @@ Resources:
         Version: "1"
       # .............................
       TargetGroupARNs:
-        - !Ref GamingTargetGroupArn
+        - !Ref GamingDcvTargetGroupArn
+        - !Ref GamingRdpTargetGroupArn
       # .............................
       VPCZoneIdentifier:
         - !Ref PublicSubnetIdA

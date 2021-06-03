@@ -179,8 +179,6 @@ fi
 
 #---
 
-#---
-
 #----------------------------------------------
 # Delete Project AMI  
 AMI_NAME="$PROJECT_NAME-pub-build"
@@ -206,11 +204,6 @@ else
   #exit 1
 fi
 #.............................
-
-
-#!! COMMENT Construct Begins Here:
-: <<'END'
-#!! COMMENT BEGIN
 
 
 
@@ -241,9 +234,12 @@ fi
 #.............................
 
 
-#!! COMMENT END
-END
-#!! COMMENT Construct Ends Here:
+
+
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# INLCUDE PARAMETER STORE PASSWORD DELETION
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 
 #!! COMMENT Construct Begins Here:

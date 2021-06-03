@@ -50,27 +50,31 @@ Resources:
 
   # ------------------------------------------
   # --- Target Group Definition
-  GamingTargetGroup:
+  GamingDcvTargetGroup:
     Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
     # .............................
     Properties:
-      Name: !Sub "${ProjectName}-tgrp-${AWS::Region}"
+      # - Careful!!! Variable limited to 32 characters
+      Name: !Sub "${ProjectName}-tgp-dcv-${AWS::Region}"
       # .............................
       Tags:
         -
           Key: "Name"
-          Value: "GamingTargetGroup"
+          Value: "GamingDcvTargetGroup"
       # .............................
       TargetGroupAttributes:
         -
-          Key: "proxy_protocol_v2.enabled"
-          Value: "false"
-        - 
-          Key: "deregistration_delay.connection_termination.enabled"
-          Value: "false"
-        -
           Key: "deregistration_delay.timeout_seconds"
           Value: "300"
+        - 
+          Key: "deregistration_delay.connection_termination.enabled"
+          Value: "true"
+        -
+          Key: "preserve_client_ip.enabled"
+          Value: "true"
+        -
+          Key: "proxy_protocol_v2.enabled"
+          Value: "false"
       # .............................
       VpcId: !Ref VPCID
       TargetType: "instance"
@@ -87,18 +91,73 @@ Resources:
       # .............................
 
 
+  # ------------------------------------------
+  # --- Target Group Definition
+  GamingRdpTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    # .............................
+    Properties:
+      # - Careful!!! Variable limited to 32 characters
+      Name: !Sub "${ProjectName}-tgp-rdp-${AWS::Region}"
+      # .............................
+      Tags:
+        -
+          Key: "Name"
+          Value: "GamingRdpTargetGroup"
+      # .............................
+      TargetGroupAttributes:
+        -
+          Key: "deregistration_delay.timeout_seconds"
+          Value: "300"
+        - 
+          Key: "deregistration_delay.connection_termination.enabled"
+          Value: "true"
+        -
+          Key: "preserve_client_ip.enabled"
+          Value: "true"
+        -
+          Key: "proxy_protocol_v2.enabled"
+          Value: "false"
+      # .............................
+      VpcId: !Ref VPCID
+      Port: 3389
+      Protocol: "TCP"
+      TargetType: "instance"
+      # .............................
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPort: "3389"
+      HealthCheckProtocol: "TCP"
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+      # .............................
+
+
 # ==========================================
 # Outputs: {}
 Outputs:
 
   # ------------------------------------------
   # --- EC2 Target Group ARN
-  GamingTargetGroupArn:
-    Description: "Network Loadbalancer Target Group ARN"
-    Value: !Ref GamingTargetGroup
+  GamingDcvTargetGroupArn:
+    Description: "Network Loadbalancer DCV Target Group ARN"
+    Value: !Ref GamingDcvTargetGroup
 
   # ------------------------------------------
   # --- EC2 Target Group Name
-  GamingTargetName:
-    Description: "Network Loadbalancer Target Group Name"
-    Value: !GetAtt GamingTargetGroup.TargetGroupName
+  #GamingDcvTargetName:
+  #  Description: "Network Loadbalancer DCV Target Group Name"
+  #  Value: !GetAtt GamingDcvTargetGroup.TargetGroupName
+
+  # ------------------------------------------
+  # --- EC2 Target Group ARN
+  GamingRdpTargetGroupArn:
+    Description: "Network Loadbalancer RDP Target Group ARN"
+    Value: !Ref GamingRdpTargetGroup
+
+  # ------------------------------------------
+  # --- EC2 Target Group Name
+  #GamingRdpTargetName:
+  #  Description: "Network Loadbalancer RDP Target Group Name"
+  #  Value: !GetAtt GamingRdpTargetGroup.TargetGroupName

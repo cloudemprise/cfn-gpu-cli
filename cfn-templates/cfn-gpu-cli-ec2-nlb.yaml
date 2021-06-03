@@ -47,11 +47,16 @@ Parameters:
     Type: "AWS::EC2::Subnet::Id"
 
   # ------------------------------------------
-  # --- Network Loadbalancer Target Grp ARN
-  GamingTargetGroupArn:
-    Description: "Network Loadbalancer Target Group ARN"
+  # --- Network Loadbalancer DCV Target Grp ARN
+  GamingDcvTargetGroupArn:
+    Description: "Network Loadbalancer DCV Target Group ARN"
     Type: String
 
+  # ------------------------------------------
+  # --- Network Loadbalancer RDP Target Grp ARN
+  GamingRdpTargetGroupArn:
+    Description: "Network Loadbalancer RDP Target Group ARN"
+    Type: String
 
 # ==========================================
 Conditions: {}
@@ -103,7 +108,7 @@ Resources:
 
   # ------------------------------------------
   # --- Load Balancer Listener Definition
-  GamingLoadBalancerListener:
+  GamingDcvLoadBalancerListener:
     Type: "AWS::ElasticLoadBalancingV2::Listener"
     # .............................
     Properties:
@@ -114,7 +119,23 @@ Resources:
       # .............................
       DefaultActions:
         -
-          TargetGroupArn: !Ref GamingTargetGroupArn
+          TargetGroupArn: !Ref GamingDcvTargetGroupArn
+          Type: "forward"
+
+  # ------------------------------------------
+  # --- Load Balancer Listener Definition
+  GamingRdpLoadBalancerListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    # .............................
+    Properties:
+      # .............................
+      Protocol: "TCP"
+      Port: 3389
+      LoadBalancerArn: !Ref GamingLoadBalancer
+      # .............................
+      DefaultActions:
+        -
+          TargetGroupArn: !Ref GamingRdpTargetGroupArn
           Type: "forward"
 
 

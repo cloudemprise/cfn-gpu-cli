@@ -66,8 +66,8 @@ Copy-Item $SourceFilePath -Destination $DestinFilePath
 # ___________________________
 # EC2Launch agent-config password configuration
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Set-Location -Path "C:\$NameOfProjBucket\ssm"
-powershell ".\$NameOfProject-ssm-agent-config.ps1"
+#Set-Location -Path "C:\$NameOfProjBucket\ssm"
+#powershell ".\$NameOfProject-ssm-agent-config.ps1"
 $SsmStorePassword=Get-SSMParameter -Name "/$NameOfProject/user-admin-auth" -WithDecryption 1 -Select Parameter.Value
 $env:Path += ";C:\Program Files\Amazon\EC2Launch"
 $agentConfig = ec2launch get-agent-config --format json | ConvertFrom-Json

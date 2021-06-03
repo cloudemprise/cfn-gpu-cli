@@ -94,6 +94,30 @@ do
 done
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+#----------------------------------------------
+# Request KMS Customer managed keys
+KMS_CMK_ALIAS="alias/ce/kms/$AWS_REGION"
+while true
+do
+  # -e : stdin from terminal
+  # -r : backslash not an escape character
+  # -p : prompt on stderr
+  # -i : use default buffer val
+  read -er -i "$KMS_CMK_ALIAS" -p "Enter KMS CMK Alias ...........................: " USER_INPUT
+  if aws kms list-aliases --query 'Aliases[].AliasName' --profile "$AWS_PROFILE" \
+    --region "$AWS_REGION" --output text 2>/dev/null | grep -qw -- "$USER_INPUT"
+  then
+    KMS_CMK_ID=$(aws kms list-aliases --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+      --query "Aliases[?AliasName == '$USER_INPUT'].TargetKeyId" --output text)
+    echo "KMS CMK Alias verified with Key ID ............: $KMS_CMK_ID"
+    KMS_CMK_ALIAS=$USER_INPUT
+    break
+  else
+    echo "Error! Invalid KMS CMK Alias, try again .......: $USER_INPUT"
+  fi
+done
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 #-----------------------------
 # Request Email Address
 USER_EMAIL="dh.info@posteo.net"
@@ -137,60 +161,100 @@ done
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------
-# Request KMS Customer managed keys
-KMS_CMK_ALIAS="alias/ce/kms/$AWS_REGION"
-while true
-do
-  # -e : stdin from terminal
-  # -r : backslash not an escape character
-  # -p : prompt on stderr
-  # -i : use default buffer val
-  read -er -i "$KMS_CMK_ALIAS" -p "Enter KMS CMK Alias ...........................: " USER_INPUT
-  if aws kms list-aliases --query 'Aliases[].AliasName' --profile "$AWS_PROFILE" \
-    --region "$AWS_REGION" --output text 2>/dev/null | grep -qw -- "$USER_INPUT"
-  then
-    KMS_CMK_ID=$(aws kms list-aliases --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-      --query "Aliases[?AliasName == '$USER_INPUT'].TargetKeyId" --output text)
-    echo "KMS CMK Alias verified with Key ID ............: $KMS_CMK_ID"
-    KMS_CMK_ALIAS=$USER_INPUT
-    break
-  else
-    echo "Error! Invalid KMS CMK Alias, try again .......: $USER_INPUT"
-  fi
-done
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-#----------------------------------------------
-# Request Windows Admin Password & encrypted it within SSM Parameter Store 
-USER_INPUT1="false"
-USER_INPUT2="true"
-# Validate! While user input is different or empty...
-while [[ "$USER_INPUT1" != "$USER_INPUT2" ]] || [[ "$USER_INPUT1" == '' ]] 
-do
-  # -s : silent mode
-  # -r : backslash not an escape character
-  # -e : stdin from terminal
-  # -p : prompt on stderr
-  read -srep "Enter Games Server Administrator Password .....: " USER_INPUT1
-  if [[ -z "$USER_INPUT1" ]]; then
-    printf '\n%s\n' "Error. No Input Entered !"
-    continue
-  else
-    read -srep $'\nRepeat Games Server Administrator Password ....: ' USER_INPUT2
-    if [[ "$USER_INPUT1" != "$USER_INPUT2" ]]; then
-      printf '\n%s\n' "Error. Password Mismatch. Try Again ...........: "
+# Windows Admin Password Encrypted within SSM Parameter Store 
+# Gaming Server User Admin Password : Exists? : Modify or Retain ?
+ADMIN_AUTH_PASS_EXISTS=$(aws ssm describe-parameters --query 'Parameters' --output text \
+  --parameter-filters "Key=Name,Values=/${PROJECT_NAME}/user-admin-auth" \
+  --profile "$AWS_PROFILE" --region "$AWS_REGION")
+# Parameter Store Password doesn't exist
+if [[ -z "$ADMIN_AUTH_PASS_EXISTS" ]]; then
+  # Ask user for Windows Admin Password
+  USER_INPUT1="false"
+  USER_INPUT2="true"
+  # Validate! While user input is different or empty...
+  while [[ "$USER_INPUT1" != "$USER_INPUT2" ]] || [[ "$USER_INPUT1" == '' ]] 
+  do
+    # -s : silent mode
+    # -r : backslash not an escape character
+    # -e : stdin from terminal
+    # -p : prompt on stderr
+    read -srep "Enter Games Server Administrator Password .....: " USER_INPUT1
+    if [[ -z "$USER_INPUT1" ]]; then
+      printf '\n%s\n' "Error. No Input Entered !"
+      continue
     else
-      printf '\n%s\n' "Password Match ........ Continue ..............:"
-      ADMIN_AUTH_PASS="$USER_INPUT2"
+      read -srep $'\nRepeat Games Server Administrator Password ....: ' USER_INPUT2
+      if [[ "$USER_INPUT1" != "$USER_INPUT2" ]]; then
+        printf '\n%s\n' "Error. Password Mismatch. Try Again ...........: "
+      else
+        printf '\n%s\n' "Password Match ........ Continue ..............:"
+        ADMIN_AUTH_PASS="$USER_INPUT2"
+      fi
     fi
-  fi
-done
-# Store Passphrase in SSM Parameter Store
-ADMIN_AUTH_PASS_NAME="/${PROJECT_NAME}/user-admin-auth"
-echo "Adding Password to AWS Parameter Store ........: $ADMIN_AUTH_PASS_NAME"
-aws ssm put-parameter --name "$ADMIN_AUTH_PASS_NAME" --value "$ADMIN_AUTH_PASS" --overwrite \
-  --type SecureString --key-id "$KMS_CMK_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-  --description "Windows Gaming Server Administrator Password." > /dev/null
+  done
+  # ___
+  # Store Passphrase in SSM Parameter Store
+  ADMIN_AUTH_PASS_NAME="/$PROJECT_NAME/user-admin-auth"
+  echo "Adding Password to AWS Parameter Store ........: $ADMIN_AUTH_PASS_NAME"
+  aws ssm put-parameter --name "$ADMIN_AUTH_PASS_NAME" --value "$ADMIN_AUTH_PASS" --overwrite \
+    --type SecureString --key-id "$KMS_CMK_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+    --description "Windows Gaming Server Administrator Password." > /dev/null
+  # ^^^
+else 
+  # Parameter Store exists but does user want to change it?
+  while true
+  do
+    # Ask user if a Password Change is required
+    read -re -i "n" -p "Modify existing Project Password ? (y/n) ......: " CHANGE_PASSWD
+    # Modify the existing password
+    if [[ "${CHANGE_PASSWD^}" == "Y" ]]; then
+      # ___
+      # Ask user for Windows Admin Password
+      USER_INPUT1="false"
+      USER_INPUT2="true"
+      # Validate! While user input is different or empty...
+      while [[ "$USER_INPUT1" != "$USER_INPUT2" ]] || [[ "$USER_INPUT1" == '' ]] 
+      do
+        # -s : silent mode
+        # -r : backslash not an escape character
+        # -e : stdin from terminal
+        # -p : prompt on stderr
+        read -srep "Enter Games Server Administrator Password .....: " USER_INPUT1
+        if [[ -z "$USER_INPUT1" ]]; then
+          printf '\n%s\n' "Error. No Input Entered !"
+          continue
+        else
+          read -srep $'\nRepeat Games Server Administrator Password ....: ' USER_INPUT2
+          if [[ "$USER_INPUT1" != "$USER_INPUT2" ]]; then
+            printf '\n%s\n' "Error. Password Mismatch. Try Again ...........: "
+          else
+            printf '\n%s\n' "Password Match ........ Continue ..............:"
+            ADMIN_AUTH_PASS="$USER_INPUT2"
+          fi
+        fi
+      done
+      # ___
+      # Store Passphrase in SSM Parameter Store
+      ADMIN_AUTH_PASS_NAME="/$PROJECT_NAME/user-admin-auth"
+      echo "Adding Password to AWS Parameter Store ........: $ADMIN_AUTH_PASS_NAME"
+      aws ssm put-parameter --name "$ADMIN_AUTH_PASS_NAME" --value "$ADMIN_AUTH_PASS" --overwrite \
+        --type SecureString --key-id "$KMS_CMK_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+        --description "Windows Gaming Server Administrator Password." > /dev/null
+      break
+      # ^^^
+    elif [[ "${CHANGE_PASSWD^}" == "N" ]]; then
+      # Keeping password unchanged but make a local copy for later use
+      ADMIN_AUTH_PASS=$(aws ssm get-parameter --profile "$AWS_PROFILE" --region "$AWS_REGION" \
+        --name "/${PROJECT_NAME}-${AWS_REGION}/user-admin-auth" --query 'Parameter.Value' \
+        --with-decryption --output text)
+      #echo "SSM Parameter Store Current Saved Password ....: $ADMIN_AUTH_PASS"
+      break
+    else
+      # Input [y/n]
+      echo "Error! Invalid Input please try again .........: $CHANGE_PASSWD"
+    fi
+  done
+fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #-----------------------------
@@ -202,7 +266,7 @@ HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "$AWS_DOMAIN_N
     && { echo "Invalid Hosted Zone!"; exit 1; } \
     || { echo "Route53 Hosted Zone ID ........................: $HOSTED_ZONE_ID"; }
 #.............................
-# Stipulate fully qualified domain name 
+# Stipulate fully qualified domain name for DCV protocol
 echo "FQDN Gaming Server ............................: \
 ${PROJECT_NAME}-${AWS_REGION}.${AWS_DOMAIN_NAME}:8443"
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -330,8 +394,11 @@ find -L ./policies/ssm/template* -type f ! -path "*/scratch/*" -print0 |
 
 #----------------------------------------------
 # Create the json objects requred for the CMK Key Policy from local template 
-# 1. EC2 Autoscaling/SpotPrice Service Linked Roles
 # exclude scratch folder
+#   1. EC2 Autoscaling/SpotPrice Service Linked Roles
+#   2. SSM Parameter Store
+#   3. SNS Topic 
+#   4. S3 Project Bucket
 find -L ./policies/kms/template* -type f ! -path "*/scratch/*" -print0 |
 # -L : Follow symbolic links
   while IFS= read -r -d '' TEMPLATE
@@ -381,7 +448,6 @@ find -L ./ssm/template* -type f ! -path "*/scratch/*" -print0 |
       cp "$TEMPLATE" "${TEMPLATE//template/$PROJECT_NAME}"
       # Replace appropriate variables
       sed -i "s/ProjectName/$PROJECT_NAME/" "$_"
-      sed -i "s/Region/$AWS_REGION/" "$_"
       sed -i "s/ProjectBucket/$PROJECT_BUCKET/" "$_"
       echo "Creating SSM Run/Automation Artifact ..........: $_"
     fi
@@ -450,7 +516,8 @@ EC2_SSM_SSM_POLICY=$(tr -d " \t\n\r" < ./policies/ec2/${PROJECT_NAME}-policy-ec2
 # jq '.' policy.json | jq -sR '.'
 
 #-----------------------------
-# Create EC2 Instance Profiles & IAM Role Polices for Public, SSM Update & Launch Templates
+# Create EC2 Instance Profiles & IAM Role Polices for SSM Update AMI, Golden Image Build & 
+# Autoscaling Launch Template Instances.
 #-----------------------------
 for PREFIX in SSM PUB LT; do
   # ___
@@ -490,6 +557,7 @@ for PREFIX in SSM PUB LT; do
   EC2_ROLE_S3_PROJ="${PROJECT_NAME}"-s3-proj-"${PREFIX,,}"-"${AWS_REGION}"
   EC2_ROLE_S3_DCV="${PROJECT_NAME}"-s3-dcv-"${PREFIX,,}"-"${AWS_REGION}"
   # ...
+  # Attach Polcies to Roles for each Build Stage, i.e. SSM, PUB, LT
   if [[ $PREFIX == "SSM" ]]; then
       # Add access to project bucket
       aws iam put-role-policy --role-name "${!VAR_NAME}"  \
@@ -527,6 +595,7 @@ for PREFIX in SSM PUB LT; do
         --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
       echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
       # ...
+  # Polcies for Golden Image AMI Build Phase
   elif [[ $PREFIX == "PUB" ]]; then
       # Add access to project bucket
       aws iam put-role-policy --role-name "${!VAR_NAME}"  \
@@ -559,6 +628,7 @@ for PREFIX in SSM PUB LT; do
         --policy-arn "$EC2_ROLE_MANAGED_ARN" --profile "$AWS_PROFILE" --region "$AWS_REGION"
       echo "The IAM Role is affixed with Managed Policy ...: ${EC2_ROLE_MANAGED_ARN}"
       # ...
+  # Policies for Autoscaling Launch Template Instances
   else 
       # Add access to project bucket
       aws iam put-role-policy --role-name "${!VAR_NAME}"  \
@@ -625,7 +695,7 @@ fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------
-# Upload all created policy docs to S3
+# Upload all created policy artifacts to S3
 find ./policies -type f -name "${PROJECT_NAME}*.json" ! -path "*/scratch/*" -print0 |
   while IFS= read -r -d '' FILE
   do
@@ -644,7 +714,7 @@ find ./policies -type f -name "${PROJECT_NAME}*.json" ! -path "*/scratch/*" -pri
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------
-# Upload Cloudformation Templates to S3
+# Upload Cloudformation Template artifacts to S3
 find -L ./cfn-templates -type f -name "*.yaml" ! -path "*/scratch/*" -print0 |
 # -L : Follow symbolic links
   while IFS= read -r -d '' FILE
@@ -681,13 +751,11 @@ else
 fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-#find /media/d/ -type f -size +50M ! \( -name "*deb" -o -name "*vmdk" \)
-
+#----------------------------------------------
+# Upload to S3 SSM Postupdate Powershell Script as well as EC2LaunchV2 custom yaml config
 find -L ./ssm -type f \( -name "${PROJECT_NAME}*.ps1" -o -name "${PROJECT_NAME}*.yml" \) \
   ! -path "*/scratch/*" -print0 |
 #----------------------------------------------
-# Upload SSM PostUpdate Powershell Script to S3
-#find -L ./ssm -type f -name "${PROJECT_NAME}*.ps1" ! -path "*/scratch/*" -print0 |
   while IFS= read -r -d '' FILE
   do
     if [[ ! -s "$FILE" ]]; then
@@ -734,6 +802,7 @@ find -L ./firefox -type f -name "firefox-profile*.zip" ! -path "*/scratch/*" -pr
 # START   CLOUDFORMATION STACK CREATION STAGE1
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
+# Create the foundational/immutable architecture for the project
 BUILD_COUNTER="stage1"
 # ___
 TEMPLATE_URL="https://${PROJECT_BUCKET}.s3.${AWS_REGION}\
@@ -760,15 +829,15 @@ STACK_ID=$(aws cloudformation create-stack --stack-name "$STACK_NAME" --paramete
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------
+# Wait for stack creation to complete
 if [[ $? -eq 0 ]]; then
-  # Wait for stack creation to complete
   echo "Cloudformation Stack Creation In Progress .....: $STACK_ID"
   CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
     --query 'Stacks[0].StackStatus' --profile "$AWS_PROFILE" --region "$AWS_REGION")
   while [[ $CHECK_STATUS == "REVIEW_IN_PROGRESS" ]] || [[ $CHECK_STATUS == "CREATE_IN_PROGRESS" ]]
   do
-      # Wait 1 seconds and then check stack status again
-      sleep 3
+      # Wait x seconds and then check stack status again
+      sleep 5
       printf '.'
       CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
         --query 'Stacks[0].StackStatus' --profile "$AWS_PROFILE" --region "$AWS_REGION")
@@ -778,14 +847,13 @@ fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #----------------------------------------------
-# Validate stack creation has not failed
+# Validate stack creation Success
 if (aws cloudformation wait stack-create-complete --stack-name "$STACK_ID" \
     --profile "$AWS_PROFILE" --region "$AWS_REGION")
 then 
   echo "Cloudformation Stack Create Process Complete ..: $BUILD_COUNTER"
 else 
   echo "Error: Stack Create Failed!"
-  #printf 'Stack ID: \n%s\n' "$STACK_ID"
   exit 1
 fi
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -806,14 +874,14 @@ $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 
 # START   SSM AUTOMATION 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-# Check if SSM UpdateWindowsAmi Exists
+# Check if SSM UpdateWindowsAmi Already Exists
 AMI_UPDATE=$(aws ec2 describe-images --filters "Name=tag:Name,Values=$PROJECT_NAME-ssm-update" \
   --owners self --query 'Images[].ImageId' --output text --profile "$AWS_PROFILE" \
   --region "$AWS_REGION")
 # ___
-# Perform SSM UpdateWindowsAmi Automation if not found.
+# Skip SSM UpdateWindowsAmi Automation if found.
 if [[ ! -z "$AMI_UPDATE" ]]; then
-  echo "Skipping Automation, UpdateWindowsAmi found ...: $AMI_UPDATE"
+  echo "Omitting Automation, UpdateWindowsAmi found ...: $AMI_UPDATE"
 else
   # Execute SSM UpdateWindowsAmi Document
   echo "Will now perform SSM Update on the Latest AMI .: $AMI_LATEST"
@@ -821,23 +889,29 @@ else
   # Execute Automation Document to Update AMI
   SSM_AUTO_DOC="AWS-UpdateWindowsAmi"
   # ___
+  # Choose Instance Size : NVidia Drivers require g4 selection, else t2 dev instance cheaper.
   SSM_AUTO_EC2="t2.micro"
   #SSM_AUTO_EC2="g4dn.xlarge"
   # ___
+  # Instance Profile
   SSM_EC2_PROFILE="${PROJECT_NAME}-ec2-ssm-${AWS_REGION}"
   # ___
+  # Service Linked Role
   SSM_SERVICE_ROLE="arn:aws:iam::$AWS_ACC_ID:role/ce/$PROJECT_NAME-ssm-automation-$AWS_REGION"
   # ___
+  # PreUpdate Powershell Command to Copy PostUpdate Script to localhost.
   SSM_PRE_UPDATE="Copy-S3Object -BucketName $PROJECT_BUCKET -KeyPrefix ssm -LocalFolder C:\\$PROJECT_BUCKET\\ssm"
   #---
+  # PostUpdate Powershell Script
   SSM_POST_UPDATE="C:\\$PROJECT_BUCKET\\ssm\\$PROJECT_NAME-ssm-update-ami.ps1"
   # ___
-  # Get Public Subnet ID AZ-A
+  # Run SSM UpdateWindowsAmi Document within Secure VPC
+  # Get Public Subnet ID AZ-A 
   SUBNET_PUB_ID_A=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" \
     --profile "$AWS_PROFILE" --region "$AWS_REGION" --output text \
     --query "Stacks[].Outputs[?OutputKey == 'PublicSubnetIdA'].OutputValue")
-  #echo "AZ-A Public Subnet ID .........................: $SUBNET_PUB_ID_A"
   # ___
+  # Execute the Automation Document
   COMMAND_ID=$(aws ssm start-automation-execution --document-name="$SSM_AUTO_DOC"           \
     --query 'AutomationExecutionId' --profile "$AWS_PROFILE" --region "$AWS_REGION"         \
     --tags Key=Project,Value="${PROJECT_NAME}" --parameters "SourceAmiId=$AMI_LATEST,       \
@@ -877,10 +951,8 @@ else
     aws ec2 create-tags --resources "$AMI_UPDATE" --profile "$AWS_PROFILE" \
       --region "$AWS_REGION" --tags Key=Name,Value="${PROJECT_NAME}-ssm-update"
     # ___
-    # Reference Updated AMI
-    #AMI_LATEST="$AMI_UPDATE"
   else 
-    echo "SSM Automation Update NOT Successful ..........: $CHECK_STATUS"
+    echo "SSM Automation UpdateWindowsAmi Failed! .......: $CHECK_STATUS"
     exit 1
   fi
   # ___
@@ -892,220 +964,150 @@ fi
 
 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-# START   CLOUDFORMATION STACK CREATION STAGE2
-#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
-BUILD_COUNTER="stage2"
-# ___
-echo "Cloudformation Stack Update Initiated .........: $BUILD_COUNTER"
-# ___
-aws cloudformation update-stack --stack-name "$STACK_ID" --parameters \
-      ParameterKey=BuildStep,ParameterValue="$BUILD_COUNTER"          \
-      ParameterKey=CurrentAmi,ParameterValue="$AMI_UPDATE"            \
-      ParameterKey=ProjectName,UsePreviousValue=true                  \
-      ParameterKey=GamingDomainName,UsePreviousValue=true             \
-      ParameterKey=GamingHostedZoneId,UsePreviousValue=true           \
-      ParameterKey=SshAccessCIDR,UsePreviousValue=true                \
-      ParameterKey=GamingEmailAddrSNS,UsePreviousValue=true           \
-      --stack-policy-url "$STACK_POLICY_URL" --use-previous-template  \
-      --profile "$AWS_PROFILE" --region "$AWS_REGION"                 \
-      --tags Key=Name,Value="$PROJECT_NAME" > /dev/null    
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-#----------------------------------------------
-if [[ $? -eq 0 ]]; then
-  # Wait for stack creation to complete
-  echo "Cloudformation Stack Update In Progress .......: $STACK_ID"
-  CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" \
-    --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
-  while [[ $CHECK_STATUS == "UPDATE_IN_PROGRESS" ]] || [[ $CHECK_STATUS == "CREATE_IN_PROGRESS" ]]
-  do
-      # Wait 3 seconds and then check stack status again
-      sleep 3
-      printf '.'
-      CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
-        --query 'Stacks[0].StackStatus' --profile "$AWS_PROFILE" --region "$AWS_REGION")
-  done
-  printf '\n'
-fi
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-#----------------------------------------------
-# Validate stack creation has not failed
-if (aws cloudformation wait stack-update-complete --stack-name "$STACK_ID" --profile "$AWS_PROFILE" \
-    --region "$AWS_REGION")
-then 
-  echo "Cloudformation Stack Update Process Complete ..: $BUILD_COUNTER"
-  #printf 'Stack ID: \n%s\n' "$STACK_ID"
-else 
-  echo "Error: Stack Update Failed!"
-  #printf 'Stack ID: \n%s\n' "$STACK_ID"
-  exit 1
-fi
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-#----------------------------------------------
-# Calculate Stack Creation Execution Time
-TIME_END_PT=$(date +%s)
-TIME_DIFF_PT=$((TIME_END_PT - TIME_START_PROJ))
-echo "$BUILD_COUNTER Finished Execution Time ................: \
-$(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 60 ))s"
-
-#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-# END   CLOUDFORMATION STACK CREATION STAGE2
-#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-
-#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # START   GOLDEN AMI CREATION
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 #----------------------------------------------
-# Get EC2 Instance ID
-INSTANCE_PUB_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
-  --query "Stacks[].Outputs[?OutputKey == 'InstanceIdPublicBuild'].OutputValue"             \
-  --profile "$AWS_PROFILE" --region "$AWS_REGION")
-echo "Golden AMI Build Stage EC2 Instance ID ........: $INSTANCE_PUB_ID"
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-
-
-
-#!! COMMENT Construct Begins Here:
-: <<'END'
-#!! COMMENT BEGIN
-
-#----------------------------------------------
-# Validity Check. Wait for instance status ok before moving on.
-echo "Waiting on Instance Status OK .................: "
-CHECK_INSTANCE_STATUS=$(aws ec2 describe-instance-status --instance-ids "$INSTANCE_PUB_ID"   \
-  --query 'InstanceStatuses[0].InstanceStatus.Status' --output text --profile "$AWS_PROFILE" \
+# Check if Golden Image AMI Already Exists
+AMI_BUILD=$(aws ec2 describe-images --filters "Name=tag:Name,Values=${PROJECT_NAME}-pub-build" \
+  --owners self --query 'Images[].ImageId' --output text --profile "$AWS_PROFILE" \
   --region "$AWS_REGION")
-while [[ $CHECK_INSTANCE_STATUS != "ok" ]]
-do
-    # Wait 3 seconds and then check stack status again
-    sleep 3
-    printf '.'
-    CHECK_INSTANCE_STATUS=$(aws ec2 describe-instance-status --instance-ids "$INSTANCE_PUB_ID"   \
-      --query 'InstanceStatuses[0].InstanceStatus.Status' --output text --profile "$AWS_PROFILE" \
-      --region "$AWS_REGION")
-done
-printf '\n'
-echo "Golden AMI Build Stage EC2 Instance State .....: $CHECK_INSTANCE_STATUS"
-#-----------------------------
-# Previous Solution:
-#aws ec2 wait instance-status-ok --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
-#--region "$AWS_REGION" &
-#P1=$!
-#wait $P1
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# ___
+# Perform Golden Image Creation if not found.
+if [[ ! -z "$AMI_BUILD" ]]; then
+  echo "Omit Golden Image creation, Build AMI found ...: $AMI_BUILD"
+else
+  # Execute Golden Image Creation routine
+  echo "Will now build Golden Image AMI on Update AMI .: $AMI_UPDATE"
+  # ___
+  BUILD_COUNTER="stage2"
+  # ___
+  echo "Cloudformation Stack Update Initiated .........: $BUILD_COUNTER"
+  # ___
+  aws cloudformation update-stack --stack-name "$STACK_ID" --parameters \
+        ParameterKey=BuildStep,ParameterValue="$BUILD_COUNTER"          \
+        ParameterKey=CurrentAmi,ParameterValue="$AMI_UPDATE"            \
+        ParameterKey=ProjectName,UsePreviousValue=true                  \
+        ParameterKey=GamingDomainName,UsePreviousValue=true             \
+        ParameterKey=GamingHostedZoneId,UsePreviousValue=true           \
+        ParameterKey=SshAccessCIDR,UsePreviousValue=true                \
+        ParameterKey=GamingEmailAddrSNS,UsePreviousValue=true           \
+        --stack-policy-url "$STACK_POLICY_URL" --use-previous-template  \
+        --profile "$AWS_PROFILE" --region "$AWS_REGION"                 \
+        --tags Key=Name,Value="$PROJECT_NAME" > /dev/null    
+  #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-#----------------------------------------------
-# Wait for SSM Agent to initialise:
-# For this routine to execute correctly it requires that the Build 
-# Stage Instance Profile has the SSM Automation Managed Policy attached
-CHECK_ID_SSM=""
-CHECK_ID_SSM=$(aws ssm describe-instance-information --query 'InstanceInformationList[].InstanceId' \
-  --output text --filters "Key=tag:Name,Values=${PROJECT_NAME}-pub-build" --profile "$AWS_PROFILE" \
-  --region "$AWS_REGION")
-#.............................
-if [[ $? -eq 0 ]]; then
-  # Wait for detection to complete
-  echo "Waiting for SSM Agent to be Dectected .........: "
-  while [[ $CHECK_ID_SSM == "" ]]
+  # ____________________________
+  if [[ $? -eq 0 ]]; then
+    # Wait for stack creation to complete
+    echo "Cloudformation Stack Update In Progress .......: $STACK_ID"
+    CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" \
+      --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
+    while [[ $CHECK_STATUS == "UPDATE_IN_PROGRESS" ]] || [[ $CHECK_STATUS == "CREATE_IN_PROGRESS" ]]
+    do
+        # Wait x seconds and then check stack status again
+        sleep 5
+        printf '.'
+        CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
+          --query 'Stacks[0].StackStatus' --profile "$AWS_PROFILE" --region "$AWS_REGION")
+    done
+    printf '\n'
+  fi
+  #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  # ____________________________
+  # Validate stack creation has not failed
+  if (aws cloudformation wait stack-update-complete --stack-name "$STACK_ID" \
+      --region "$AWS_REGION" --profile "$AWS_PROFILE")
+  then 
+    echo "Cloudformation Stack Update Process Complete ..: $BUILD_COUNTER"
+  else 
+    echo "Error: Stack Update Failed!"
+    exit 1
+  fi
+  #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  # ____________________________
+  # Get EC2 Instance ID
+  INSTANCE_PUB_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
+    --query "Stacks[].Outputs[?OutputKey == 'InstanceIdPublicBuild'].OutputValue"             \
+    --profile "$AWS_PROFILE" --region "$AWS_REGION")
+  echo "Golden AMI Build Stage EC2 Instance ID ........: $INSTANCE_PUB_ID"
+  #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  # ____________________________
+  # Wait for instance status stopped before moving on.
+  # Userdata Script stops instance when script is complete.
+  echo "Waiting on Instance Status Stopped ............: "
+  CHECK_INSTANCE_STATUS=$(aws ec2 describe-instances --instance-ids "$INSTANCE_PUB_ID"   \
+    --query 'Reservations[].Instances[].State.Name' --output text --profile "$AWS_PROFILE" \
+    --region "$AWS_REGION")
+  while [[ $CHECK_INSTANCE_STATUS != "stopped" ]]
   do
       # Wait 3 seconds and then check stack status again
       sleep 3
       printf '.'
-      CHECK_ID_SSM=$(aws ssm describe-instance-information --profile "$AWS_PROFILE"         \
-        --region "$AWS_REGION" --query 'InstanceInformationList[].InstanceId' --output text \
-        --filters "Key=tag:Name,Values=${PROJECT_NAME}-pub-build")
+      CHECK_INSTANCE_STATUS=$(aws ec2 describe-instances --instance-ids "$INSTANCE_PUB_ID"   \
+        --query 'Reservations[].Instances[].State.Name' --output text --profile "$AWS_PROFILE" \
+        --region "$AWS_REGION")
   done
   printf '\n'
-  echo "SSM Agent Detected on Instance with ID ........: $CHECK_ID_SSM"
-else
-  echo "Error in SSM Agent Detection ..................: $INSTANCE_PUB_ID"
-  exit 1
+  echo "Golden AMI Build Stage EC2 Instance State .....: $CHECK_INSTANCE_STATUS"
+  #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  # ____________________________
+  # Create Golden AMI
+  echo "Start Process of Golden Image Creation ........: "
+  AMI_BUILD=$(aws ec2 create-image --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
+    --name "${PROJECT_NAME}-pub-build" --description "${PROJECT_NAME}-pub-build-ami" \
+    --output text  --region "$AWS_REGION")
+  #.............................
+  if [[ $? -eq 0 ]]; then
+    # Wait for detection to complete
+    echo "Waiting for AMI Creation to complete ..........: $AMI_BUILD"
+    CHECK_AMI_STATUS=$(aws ec2 describe-images --image-ids "$AMI_BUILD" --output text \
+      --query 'Images[].State' --profile "$AWS_PROFILE" --region "$AWS_REGION")
+    while [[ $CHECK_AMI_STATUS != "available" ]]
+    do
+        # Wait 3 seconds and then check stack status again
+        sleep 3
+        printf '.'
+        CHECK_AMI_STATUS=$(aws ec2 describe-images --image-ids "$AMI_BUILD" --output text \
+          --query 'Images[].State' --profile "$AWS_PROFILE" --region "$AWS_REGION")
+    done
+    printf '\n'
+    echo "Build Stage Golden Image Status ...............: $CHECK_AMI_STATUS "
+  else
+    echo "Error! Creation of Golden Image failed ........: $INSTANCE_PUB_ID"
+    exit 1
+  fi
+  #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  # ____________________________
+  # Give AMI a Name Tag
+  aws ec2 create-tags --resources "$AMI_BUILD" --profile "$AWS_PROFILE" \
+    --tags Key=Name,Value="${PROJECT_NAME}-pub-build" --region "$AWS_REGION"
+  #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  # ____________________________
+  # Terminate the instances - no longer needed.
+  aws ec2 terminate-instances --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
+    --region "$AWS_REGION" > /dev/null
+  #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # If you need to delete SSM Update AMI do it here
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  # ____________________________
+  # Calculate AMI Creation Execution Time
+  TIME_END_PT=$(date +%s)
+  TIME_DIFF_PT=$((TIME_END_PT - TIME_START_PROJ))
+  echo "Golden Image Build Complete, AMI Available ....: \
+  $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 60 ))s"
+  #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  # ___
 fi
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-#!! COMMENT END
-END
-#!! COMMENT Construct Ends Here:
-
-
-
-#----------------------------------------------
-# Wait for instance status stopped before moving on.
-# Userdata Script stops instance when script is complete.
-echo "Waiting on Instance Status Stopped ............: "
-CHECK_INSTANCE_STATUS=$(aws ec2 describe-instances --instance-ids "$INSTANCE_PUB_ID"   \
-  --query 'Reservations[].Instances[].State.Name' --output text --profile "$AWS_PROFILE" \
-  --region "$AWS_REGION")
-while [[ $CHECK_INSTANCE_STATUS != "stopped" ]]
-do
-    # Wait 3 seconds and then check stack status again
-    sleep 3
-    printf '.'
-    CHECK_INSTANCE_STATUS=$(aws ec2 describe-instances --instance-ids "$INSTANCE_PUB_ID"   \
-      --query 'Reservations[].Instances[].State.Name' --output text --profile "$AWS_PROFILE" \
-      --region "$AWS_REGION")
-done
-printf '\n'
-echo "Golden AMI Build Stage EC2 Instance State .....: $CHECK_INSTANCE_STATUS"
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-#----------------------------------------------
-# Create Golden AMI
-echo "Start Process of Golden Image Creation ........: "
-AMI_IMAGE_PUB=$(aws ec2 create-image --instance-id "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
-  --name "${PROJECT_NAME}-pub-build" --description "${PROJECT_NAME}-pub-build-ami" \
-  --output text  --region "$AWS_REGION")
-#.............................
-if [[ $? -eq 0 ]]; then
-  # Wait for detection to complete
-  echo "Waiting for AMI Creation to complete ..........: $AMI_IMAGE_PUB"
-  CHECK_AMI_STATUS=$(aws ec2 describe-images --image-ids "$AMI_IMAGE_PUB" --output text \
-    --query 'Images[].State' --profile "$AWS_PROFILE" --region "$AWS_REGION")
-  while [[ $CHECK_AMI_STATUS != "available" ]]
-  do
-      # Wait 3 seconds and then check stack status again
-      sleep 3
-      printf '.'
-      CHECK_AMI_STATUS=$(aws ec2 describe-images --image-ids "$AMI_IMAGE_PUB" --output text \
-        --query 'Images[].State' --profile "$AWS_PROFILE" --region "$AWS_REGION")
-  done
-  printf '\n'
-  echo "Build Stage Golden Image Status ...............: $CHECK_AMI_STATUS "
-else
-  echo "Error! Creation of Golden Image failed ........: $INSTANCE_PUB_ID"
-  exit 1
-fi
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-#----------------------------------------------
-# Give AMI a Name Tag
-aws ec2 create-tags --resources "$AMI_IMAGE_PUB" --tags Key=Name,Value="${PROJECT_NAME}-pub-build" \
-  --profile "$AWS_PROFILE" --region "$AWS_REGION"
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-#----------------------------------------------
-# Terminate the instances - no longer needed.
-aws ec2 terminate-instances --instance-ids "$INSTANCE_PUB_ID" --profile "$AWS_PROFILE" \
-  --region "$AWS_REGION" > /dev/null
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-# ?????????????????????????????????????????
-# CONSIDER DELETEING SSM UPDATED AMI HERE
-# ?????????????????????????????????????????
-
-#----------------------------------------------
-# Calculate AMI Creation Execution Time
-TIME_END_PT=$(date +%s)
-TIME_DIFF_PT=$((TIME_END_PT - TIME_START_PROJ))
-echo "Build Instance Terminated AMI Creation Time ...: \
-$(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 60 ))s"
-#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 # END   GOLDEN AMI CREATION
@@ -1113,16 +1115,18 @@ $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 
 
 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-# START   CLOUDFORMATION STACK CREATION STAGE3
+# START   CLOUDFORMATION STACK CREATION STAGE4
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
+# Actualize all the "Bells and Whistles" of the architecture here.
+# eg. Autoscaling/Loadbalancer/Telemetry
 BUILD_COUNTER="stage4"
 # ___
 echo "Cloudformation Stack Update Initiated .........: $BUILD_COUNTER"
 # ___
 aws cloudformation update-stack --stack-name "$STACK_ID" --parameters \
       ParameterKey=BuildStep,ParameterValue="$BUILD_COUNTER"          \
-      ParameterKey=CurrentAmi,ParameterValue="$AMI_IMAGE_PUB"         \
+      ParameterKey=CurrentAmi,ParameterValue="$AMI_BUILD"         \
       ParameterKey=ProjectName,UsePreviousValue=true                  \
       ParameterKey=GamingDomainName,UsePreviousValue=true             \
       ParameterKey=GamingHostedZoneId,UsePreviousValue=true           \
@@ -1141,8 +1145,8 @@ if [[ $? -eq 0 ]]; then
     --query 'Stacks[0].StackStatus' --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
   while [[ $CHECK_STATUS == "UPDATE_IN_PROGRESS" ]] || [[ $CHECK_STATUS == "CREATE_IN_PROGRESS" ]]
   do
-      # Wait 3 seconds and then check stack status again
-      sleep 3
+      # Wait x seconds and then check stack status again
+      sleep 5
       printf '.'
       CHECK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_ID" --output text \
         --query 'Stacks[0].StackStatus' --profile "$AWS_PROFILE" --region "$AWS_REGION")
@@ -1175,11 +1179,6 @@ $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 # END   CLOUDFORMATION STACK CREATION STAGE2
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-
-# ?????????????????????????????????????????
-# CONSIDER WAIT STATEMENT AUTOSCALING GROUP TO LAUNCH INSTANCE
-# ?????????????????????????????????????????
 
 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1211,8 +1210,8 @@ CHECK_INSTANCE_STATUS=$(aws ec2 describe-instance-status --instance-ids "$INSTAN
   --region "$AWS_REGION")
 while [[ $CHECK_INSTANCE_STATUS != "ok" ]]
 do
-    # Wait 3 seconds and then check stack status again
-    sleep 3
+    # Wait x seconds and then check stack status again
+    sleep 5
     printf '.'
     CHECK_INSTANCE_STATUS=$(aws ec2 describe-instance-status --instance-ids "$INSTANCE_LT_ID"   \
       --query 'InstanceStatuses[0].InstanceStatus.Status' --output text --profile "$AWS_PROFILE" \
@@ -1222,13 +1221,61 @@ printf '\n'
 echo "Autoscaling Launch Template Instance State ....: OK"
 #-----------------------------
 
+
 #----------------------------------------------
-# Create RDP client configuration
-printf 'auto connect:i:1\n' > ./rdp/$PROJECT_NAME-$AWS_REGION-autoscale-grp.rdp
-printf 'full address:s:%s\n' "$INSTANCE_LT_DNS" >> ./rdp/$PROJECT_NAME-$AWS_REGION-autoscale-grp.rdp
-printf 'username:s:Administrator\n' >> ./rdp/$PROJECT_NAME-$AWS_REGION-autoscale-grp.rdp
-printf 'password:s:%s\n' "$ADMIN_AUTH_PASS" >> ./rdp/$PROJECT_NAME-$AWS_REGION-autoscale-grp.rdp
-chmod 600 "./rdp/$PROJECT_NAME-$AWS_REGION-autoscale-grp.rdp"
+# Create DCV Network Loadbalancer client configuration
+CONFIG_DCV_R53="${PROJECT_NAME}-${AWS_REGION}.${AWS_DOMAIN_NAME}.dcv"
+FQDN_DCV_R53="${PROJECT_NAME}-${AWS_REGION}.${AWS_DOMAIN_NAME}"
+
+printf '[version]\n' > ./rdp/$CONFIG_DCV_R53
+printf 'format=1.0\n\n' >> ./rdp/$CONFIG_DCV_R53
+printf '[connect]\n' >> ./rdp/$CONFIG_DCV_R53
+printf 'host=%s\n' $FQDN_DCV_R53 >> ./rdp/$CONFIG_DCV_R53
+printf 'port=8443\n' >> ./rdp/$CONFIG_DCV_R53
+printf 'user=Administrator\n' >> ./rdp/$CONFIG_DCV_R53
+printf 'password=%s\n' $ADMIN_AUTH_PASS >> ./rdp/$CONFIG_DCV_R53
+chmod 600 "./rdp/$CONFIG_DCV_R53"
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#----------------------------------------------
+# Create DCV EC2 Elastic Network Interface client configuration
+CONFIG_DCV_EC2="${PROJECT_NAME}-${AWS_REGION}.compute.amazonaws.com.dcv"
+FQDN_DCV_EC2="$INSTANCE_LT_DNS"
+
+printf '[version]\n' > ./rdp/$CONFIG_DCV_EC2
+printf 'format=1.0\n\n' >> ./rdp/$CONFIG_DCV_EC2
+printf '[connect]\n' >> ./rdp/$CONFIG_DCV_EC2
+printf 'host=%s\n' $FQDN_DCV_EC2 >> ./rdp/$CONFIG_DCV_EC2
+printf 'port=8443\n' >> ./rdp/$CONFIG_DCV_EC2
+printf 'user=Administrator\n' >> ./rdp/$CONFIG_DCV_EC2
+printf 'password=%s\n' $ADMIN_AUTH_PASS >> ./rdp/$CONFIG_DCV_EC2
+chmod 600 "./rdp/$CONFIG_DCV_EC2"
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+#----------------------------------------------
+# Create RDP R53 Elastic Network Interface client configuration
+CONFIG_RDP_R53="${PROJECT_NAME}-${AWS_REGION}.${AWS_DOMAIN_NAME}.rdp"
+FQDN_RDP_R53="${PROJECT_NAME}-${AWS_REGION}.${AWS_DOMAIN_NAME}"
+
+printf 'auto connect:i:1\n' > ./rdp/$CONFIG_RDP_R53
+printf 'full address:s:%s\n' "$FQDN_RDP_R53" >> ./rdp/$CONFIG_RDP_R53
+printf 'username:s:Administrator\n' >> ./rdp/$CONFIG_RDP_R53
+printf 'password:s:%s\n' $ADMIN_AUTH_PASS >> ./rdp/$CONFIG_RDP_R53
+chmod 600 "./rdp/$CONFIG_RDP_R53"
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+#----------------------------------------------
+# Create RDP EC2 Elastic Network Interface client configuration
+CONFIG_RDP_EC2="${PROJECT_NAME}-${AWS_REGION}.compute.amazonaws.com.rdp"
+FQDN_RDP_EC2="$INSTANCE_LT_DNS"
+
+printf 'auto connect:i:1\n' > ./rdp/$CONFIG_RDP_EC2
+printf 'full address:s:%s\n' "$FQDN_RDP_EC2" >> ./rdp/$CONFIG_RDP_EC2
+printf 'username:s:Administrator\n' >> ./rdp/$CONFIG_RDP_EC2
+printf 'password:s:%s\n' $ADMIN_AUTH_PASS >> ./rdp/$CONFIG_RDP_EC2
+chmod 600 "./rdp/$CONFIG_RDP_EC2"
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
