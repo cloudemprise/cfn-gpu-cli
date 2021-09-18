@@ -179,73 +179,103 @@ fi
 
 #---
 
-#----------------------------------------------
-# Delete Project AMI  
-AMI_NAME="$PROJECT_NAME-pub-build"
-AMI_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} --owners self --output text \
-  --query 'Images[].ImageId' --profile "$AWS_PROFILE" --region "$AWS_REGION" 2> /dev/null)
-if [[ "$AMI_ID" != "" ]]
-then
-  echo "AMI Found .....................................: $AMI_ID"
-  # Get Snapshot ID
-  SNAPSHOT_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} \
-                --output text --query 'Images[].BlockDeviceMappings[].Ebs.SnapshotId' \
-                --profile "$AWS_PROFILE" --region "$AWS_REGION")
-  echo "Snapshot Found ................................: $SNAPSHOT_ID"
-  # Deregister AMI
-  aws ec2 deregister-image --image-id "$AMI_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-  echo "AMI Deregistred ...............................: OK"
-  # Snapshot Deleted
-  aws ec2 delete-snapshot --snapshot-id "$SNAPSHOT_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-
-  echo "Snapshot Deleted ..............................: OK"
-else
-  echo "Failed to find Project AMI ....................: $AMI_NAME"
-  #exit 1
-fi
-#.............................
-
-
-
-#----------------------------------------------
-# Delete SSM Update AMI  
-AMI_NAME="cfn-gpu-cli-ssm-update"
-AMI_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} --owners self --output text \
-  --query 'Images[].ImageId' --profile "$AWS_PROFILE" --region "$AWS_REGION" 2> /dev/null)
-if [[ "$AMI_ID" != "" ]]
-then
-  echo "AMI Found .....................................: $AMI_ID"
-  # Get Snapshot ID
-  SNAPSHOT_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} \
-                --output text --query 'Images[].BlockDeviceMappings[].Ebs.SnapshotId' \
-                --profile "$AWS_PROFILE" --region "$AWS_REGION")
-  echo "Snapshot Found ................................: $SNAPSHOT_ID"
-  # Deregister AMI
-  aws ec2 deregister-image --image-id "$AMI_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-  echo "AMI Deregistred ...............................: OK"
-  # Snapshot Deleted
-  aws ec2 delete-snapshot --snapshot-id "$SNAPSHOT_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
-
-  echo "Snapshot Deleted ..............................: OK"
-else
-  echo "Failed to find SSM update AMI .................: $AMI_NAME"
-  #exit 1
-fi
-#.............................
-
-
-
-
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# INLCUDE PARAMETER STORE PASSWORD DELETION
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
 
 #!! COMMENT Construct Begins Here:
 : <<'END'
 #!! COMMENT BEGIN
 
+
+#----------------------------------------------
+# Delete Project Build AMI  
+AMI_NAME="$PROJECT_NAME-pub-build"
+AMI_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} --owners self --output text \
+  --query 'Images[].ImageId' --profile "$AWS_PROFILE" --region "$AWS_REGION" 2> /dev/null)
+if [[ "$AMI_ID" != "" ]]
+then
+  echo "Project Build AMI Found .......................: $AMI_ID"
+  # Get Snapshot ID
+  SNAPSHOT_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} \
+                --output text --query 'Images[].BlockDeviceMappings[].Ebs.SnapshotId' \
+                --profile "$AWS_PROFILE" --region "$AWS_REGION")
+  echo "Project Build AMI Snapshot Found ..............: $SNAPSHOT_ID"
+  # Deregister AMI
+  aws ec2 deregister-image --image-id "$AMI_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+  echo "Project Build AMI Deregistred .................: OK"
+  # Snapshot Deleted
+  aws ec2 delete-snapshot --snapshot-id "$SNAPSHOT_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+  # ___
+  echo "Project Build AMI Snapshot Deleted ............: OK"
+else
+  echo "Project Build AMI Not Found ...................: $AMI_NAME"
+  #exit 1
+fi
+#.............................
+
+#---
+
+
+
+
+
+#----------------------------------------------
+# Delete SSM Update AMI  
+AMI_NAME="$PROJECT_NAME-ssm-update"
+AMI_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} --owners self --output text \
+  --query 'Images[].ImageId' --profile "$AWS_PROFILE" --region "$AWS_REGION" 2> /dev/null)
+if [[ "$AMI_ID" != "" ]]
+then
+  echo "SSM Automated Updated AMI Found ...............: $AMI_ID"
+  # Get Snapshot ID
+  SNAPSHOT_ID=$(aws ec2 describe-images --filters Name=name,Values=${AMI_NAME} \
+                --output text --query 'Images[].BlockDeviceMappings[].Ebs.SnapshotId' \
+                --profile "$AWS_PROFILE" --region "$AWS_REGION")
+  echo "SSM Automated Updated AMI Snapshot Found ......: $SNAPSHOT_ID"
+  # Deregister AMI
+  aws ec2 deregister-image --image-id "$AMI_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+  echo "SSM Automated Updated AMI Deregistred .........: OK"
+  # Snapshot Deleted
+  aws ec2 delete-snapshot --snapshot-id "$SNAPSHOT_ID" --profile "$AWS_PROFILE" --region "$AWS_REGION"
+  # ___
+  echo "SSM Automated Updated AMI Snapshot Deleted ....: OK"
+else
+  echo "SSM Automated Updated AMI Not Found ...........: $AMI_NAME"
+  #exit 1
+fi
+#.............................
+
+
 #!! COMMENT END
 END
 #!! COMMENT Construct Ends Here:
+
+#---
+
+#----------------------------------------------
+# Delete Windows Admin Password Encrypted within SSM Parameter Store
+# Gaming Server User Admin Password : Exists?
+ADMIN_AUTH_PASS_EXISTS=$(aws ssm describe-parameters --query 'Parameters' --output text \
+  --parameter-filters "Key=Name,Values=/${PROJECT_NAME}/user-admin-auth" \
+  --profile "$AWS_PROFILE" --region "$AWS_REGION")
+# Parameter Store Password doesn't exist
+if [[ -z "$ADMIN_AUTH_PASS_EXISTS" ]]; then
+  # ___
+  echo "SSM Gamer Admin Password nonexistent ..........: $ADMIN_AUTH_PASS_EXISTS" 
+  # ^^^
+else
+  # ___
+  # Delete the SSM Parameter Store Variable
+  ADMIN_AUTH_PASS_NAME="/$PROJECT_NAME/user-admin-auth"
+  aws ssm delete-parameter --name "$ADMIN_AUTH_PASS_NAME" --profile "$AWS_PROFILE" \
+    --region "$AWS_REGION"
+  # ___
+  if [[ $? -eq 0 ]]; then
+    # Deletion was successful
+    echo "SSM Gamer Admin Password was deleted ..........: OK"
+  else
+    # Deletion failed
+    echo "Error! Gamer Admin Password failed to delete ..: $ADMIN_AUTH_PASS_NAME"
+  fi
+  # ^^^^
+fi
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+

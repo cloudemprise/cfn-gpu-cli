@@ -44,12 +44,6 @@ $ScriptFileName = Get-ChildItem -Path $UnzipFileLocation -Name -Include "*.ps1"
 powershell .\$ScriptFileName
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-# ___________________________
-# Execute script to set custom EC2Launch agent-config
-# ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#Set-Location -Path "C:\$NameOfProjBucket\ssm"
-#powershell ".\${ProjectName}-ssm-agent-config.ps1"
-# ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 # ___________________________
 # Set custom EC2Launch agent-config
@@ -114,7 +108,54 @@ foreach ($Object in $ObjectsFirefox) {
 }
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+# ___________________________
+# DOWNLOAD S3 OBJECTS: NVIDIA DRIVER
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+$NvidiaBucket = "nvidia-gaming"
+$NvidiaLocalPath = "C:\$NameOfProjBucket\nvidia"
+$PrefixNvidia = "windows/latest"
+$ObjectsNvidia = Get-S3Object -BucketName $NvidiaBucket -KeyPrefix $PrefixNvidia
+# ...........................
+foreach ($Object in $ObjectsNvidia) {
+    $LocalFileName = $Object.Key
+    if ($LocalFileName -ne '' -and $Object.Size -ne 0) {
+        $LocalFilePath = Join-Path $NvidiaLocalPath $LocalFileName
+        Copy-S3Object -BucketName $NvidiaBucket -Key $Object.Key -LocalFile $LocalFilePath
+    }
+}
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+# install nvidia driver
+# location where zip file is located
+$ZipFileLocation = Join-Path $NvidiaLocalPath $PrefixNvidia
+# zip filename, including extention
+$ZipFileName = Get-ChildItem -Path $ZipFileLocation -Name -Include "*.zip"
+# zip file name full
+$ZipFileNameFull = Join-Path $ZipFileLocation $ZipFileName
+# zip file name base
+$ZipFileNameBase = (Get-Item $ZipFileNameFull).Basename
+# change to zip file location
+Set-Location $ZipFileLocation
+# extract zip file
+Expand-Archive -Path $ZipFileNameFull
+# change to executable file location
+$UnzipFileLocation = Join-Path $ZipFileLocation "$ZipFileNameBase\Windows"
+Set-Location -Path "$UnzipFileLocation"
+# filter for specific driver
+$ExeFileName = Get-ChildItem -Path $UnzipFileLocation -Name -Include "*server2019*.exe"
+# execute driver file in silent mode
+$ExeFileNameFull = Join-Path $UnzipFileLocation $ExeFileName
+Start-Process -NoNewWindow -Wait -FilePath $ExeFileNameFull -ArgumentList '/s'
+# ...........................
+
+# NVIDIA Gaming license
+New-ItemProperty -Path "HKLM:\SOFTWARE\NVIDIA Corporation\Global" -Name "vGamingMarketplace" -PropertyType "DWord" -Value "2"
+#reg add "HKLM\SOFTWARE\NVIDIA Corporation\Global" /v vGamingMarketplace /t REG_DWORD /d 2
+Invoke-WebRequest -Uri "https://nvidia-gaming.s3.amazonaws.com/GridSwCert-Archive/GridSwCertWindows_2021_10_2.cert" -OutFile "$Env:PUBLIC\Documents\GridSwCert.txt"
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+# ___________________________
 # Install nice-dcv driver
 New-Item -ItemType "directory" -Path "C:\$NameOfProjBucket\dcv"
 Set-Location -Path "C:\$NameOfProjBucket\dcv"

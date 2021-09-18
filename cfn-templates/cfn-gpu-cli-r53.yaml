@@ -21,13 +21,12 @@ Parameters:
   # --- The Project Name
   ProjectName:
     Description: "The Name given to this Project."
-    ConstraintDescription: "Name must satisfy S3 constraints."
+    ConstraintDescription: "Must satisfy S3 constraints."
     Type: String
     Default: "cfn-gpu-cli"
     MinLength: 3
-    MaxLength: 63
-    AllowedPattern:
-      ^[a-zA-Z0-9.\-_]{1,255}$
+    MaxLength: 11
+    AllowedPattern: ^[a-zA-Z0-9.\-_]{1,255}$
 
   # ------------------------------------------
   # --- Route53 Particulars

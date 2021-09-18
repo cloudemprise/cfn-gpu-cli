@@ -19,13 +19,12 @@ Parameters:
   # --- The Project Name
   ProjectName:
     Description: "The Name given to this Project."
-    ConstraintDescription: "Name must satisfy S3 constraints."
+    ConstraintDescription: "Must satisfy S3 constraints."
     Type: String
     Default: "cfn-gpu-cli"
     MinLength: 3
-    MaxLength: 63
-    AllowedPattern:
-      ^[a-zA-Z0-9.\-_]{1,255}$
+    MaxLength: 11
+    AllowedPattern: ^[a-zA-Z0-9.\-_]{1,255}$
 
   # ------------------------------------------
   # --- Script Build Step Counter
@@ -39,7 +38,7 @@ Parameters:
       - "stage2"
       - "stage3"
       - "stage4"
-
+      - "stage5"
 
   # ------------------------------------------
   # --- The Hosted Zone Domain Name
@@ -89,11 +88,21 @@ Parameters:
     AllowedPattern:
       ^([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$
 
+  # ------------------------------------------
+  # --- Duration of EC2 Spot Request
+  SpotBlockDuration:
+    Description: "Duration of EC2 Spot Request"
+    ConstraintDescription: "Value must be a multiple of 60."
+    Type: String
+    # Multiples of 60mins
+    Default: "60"
+
 
 # ==========================================
 # Conditions: {}
 Conditions:
-  CreateResourcesStage1: !Equals [!Ref BuildStep, "stage1"]
+  # stage1 is the default, immutable components
+  #CreateResourcesStage1: !Equals [!Ref BuildStep, "stage1"]
   CreateResourcesStage2: !Equals [!Ref BuildStep, "stage2"]
   CreateResourcesStage3: !Equals [!Ref BuildStep, "stage3"]
   CreateResourcesStage4: !Equals [!Ref BuildStep, "stage4"]
@@ -116,8 +125,7 @@ Resources:
       TemplateURL:
         !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-vpc.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
+        ProjectName: !Ref ProjectName
         #BuildStep:
         #  !Ref BuildStep
       TimeoutInMinutes: 5
@@ -132,8 +140,7 @@ Resources:
       TemplateURL:
         !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-vpc-nacl.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
+        ProjectName: !Ref ProjectName
         VPCID:
           !GetAtt VPCDef.Outputs.VPCID
         PublicSubnetIdA:
@@ -160,8 +167,7 @@ Resources:
       TemplateURL:
         !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-vpc-sg.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
+        ProjectName: !Ref ProjectName
         VPCID:
           !GetAtt VPCDef.Outputs.VPCID
         SshAccessCIDR:
@@ -171,27 +177,21 @@ Resources:
 
   # ------------------------------------------
   # --- Public EC2 Instance
-  InstancePubDef:
+  InstanceBuildDef:
     Type: "AWS::CloudFormation::Stack"
     Condition: CreateResourcesStage2
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-pub.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-build.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
-        PublicAmiId:
-          !Ref CurrentAmi
-        PublicSubnetIdA:
-          !GetAtt VPCDef.Outputs.PublicSubnetIdA
-        PublicSubnetIdB:
-          !GetAtt VPCDef.Outputs.PublicSubnetIdB
-        PublicSubnetIdC:
-          !GetAtt VPCDef.Outputs.PublicSubnetIdC
-        PublicSgResourceId:
-          !GetAtt SgDefs.Outputs.PublicSgResourceId
-      TimeoutInMinutes: 10
+        ProjectName: !Ref ProjectName
+        BuildAmiId:  !Ref CurrentAmi
+        PublicSgResourceId: !GetAtt SgDefs.Outputs.PublicSgResourceId
+        PublicSubnetIdA: !GetAtt VPCDef.Outputs.PublicSubnetIdA
+        PublicSubnetIdB: !GetAtt VPCDef.Outputs.PublicSubnetIdB
+        PublicSubnetIdC: !GetAtt VPCDef.Outputs.PublicSubnetIdC
+      TimeoutInMinutes: 12
 
 
   # ------------------------------------------
@@ -199,14 +199,13 @@ Resources:
   InstancePrivDef:
     Type: "AWS::CloudFormation::Stack"
     Condition: "CreateResourcesStage3"
-    DependsOn: "InstancePubDef"
+    DependsOn: "InstanceBuildDef"
     # .............................
     Properties:
       TemplateURL:
         !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-priv.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
+        ProjectName: !Ref ProjectName
         PrivateAmiId:
           !Ref CurrentAmi
         PrivateSubnetIdA:
@@ -224,15 +223,16 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-lt.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-asg-lt.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
-        PublicLtAmiId:
-          !Ref CurrentAmi
-        PublicSgResourceId:
-          !GetAtt SgDefs.Outputs.PublicSgResourceId
-      TimeoutInMinutes: 5
+        ProjectName: !Ref ProjectName
+        LaunchTemplateAmiId: !Ref CurrentAmi
+        PublicSgResourceId: !GetAtt SgDefs.Outputs.PublicSgResourceId
+        PublicSubnetIdA: !GetAtt VPCDef.Outputs.PublicSubnetIdA
+        PublicSubnetIdB: !GetAtt VPCDef.Outputs.PublicSubnetIdB
+        PublicSubnetIdC: !GetAtt VPCDef.Outputs.PublicSubnetIdC
+        SpotBlockDuration: !Ref SpotBlockDuration
+      TimeoutInMinutes: 7
 
 
   # ------------------------------------------
@@ -243,10 +243,9 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-tg.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-asg-tg.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
+        ProjectName: !Ref ProjectName
         VPCID:
           !GetAtt VPCDef.Outputs.VPCID
       TimeoutInMinutes: 5
@@ -260,10 +259,9 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-sns.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-asg-sns.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
+        ProjectName: !Ref ProjectName
         GamingEmailAddrSNS:
           !Ref GamingEmailAddrSNS
       TimeoutInMinutes: 5
@@ -279,8 +277,7 @@ Resources:
       TemplateURL:
         !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-asg.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
+        ProjectName: !Ref ProjectName
         PublicSubnetIdA:
           !GetAtt VPCDef.Outputs.PublicSubnetIdA
         PublicSubnetIdB:
@@ -289,10 +286,10 @@ Resources:
           !GetAtt VPCDef.Outputs.PublicSubnetIdC
         GamingLaunchTemplateId:
           !GetAtt GamingLaunchTemplateDef.Outputs.GamingLaunchTemplateId
-        GamingDcvTargetGroupArn:
-          !GetAtt GamingTargetGroupDef.Outputs.GamingDcvTargetGroupArn
-        GamingRdpTargetGroupArn:
-          !GetAtt GamingTargetGroupDef.Outputs.GamingRdpTargetGroupArn
+        GamingTargetGroupDcvArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingTargetGroupDcvArn
+        GamingTargetGroupRdpArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingTargetGroupRdpArn
         GamingSNSTopicARN:
           !GetAtt GamingSNSTopicDef.Outputs.GamingSNSTopicARN
       TimeoutInMinutes: 5
@@ -303,25 +300,40 @@ Resources:
   GamingLoadBalancerDef:
     Type: "AWS::CloudFormation::Stack"
     Condition: "CreateResourcesStage4"
-    DependsOn: "AutoScaleGroupDef"
+    #DependsOn: "AutoScaleGroupDef"
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-nlb.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-asg-nlb.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
+        ProjectName: !Ref ProjectName
         PublicSubnetIdA:
           !GetAtt VPCDef.Outputs.PublicSubnetIdA
         PublicSubnetIdB:
           !GetAtt VPCDef.Outputs.PublicSubnetIdB
         PublicSubnetIdC:
           !GetAtt VPCDef.Outputs.PublicSubnetIdC
-        GamingDcvTargetGroupArn:
-          !GetAtt GamingTargetGroupDef.Outputs.GamingDcvTargetGroupArn
-        GamingRdpTargetGroupArn:
-          !GetAtt GamingTargetGroupDef.Outputs.GamingRdpTargetGroupArn
+        GamingTargetGroupDcvArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingTargetGroupDcvArn
+        GamingTargetGroupRdpArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingTargetGroupRdpArn
       TimeoutInMinutes: 5
+
+
+  # ------------------------------------------
+  # --- Spot Fleet Request
+  GamingSpotFleetDef:
+    Type: "AWS::CloudFormation::Stack"
+    Condition: "CreateResourcesStage5"
+    # .............................
+    Properties:
+      TemplateURL:
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-spot.yaml"
+      Parameters:
+        ProjectName: !Ref ProjectName
+      TimeoutInMinutes: 5
+
+
 
 
   # ------------------------------------------
@@ -337,8 +349,7 @@ Resources:
       TemplateURL:
         !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-cw.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
+        ProjectName: !Ref ProjectName
         GamingSNSTopicARN:
           !GetAtt GamingSNSTopicDef.Outputs.GamingSNSTopicARN
       TimeoutInMinutes: 5
@@ -348,14 +359,13 @@ Resources:
   # --- Route53 Record Set
   GamingR53RecordSetDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage4"
+    Condition: "CreateResourcesStage5"
     # .............................
     Properties:
       TemplateURL:
         !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-r53.yaml"
       Parameters:
-        ProjectName:
-          !Ref ProjectName
+        ProjectName: !Ref ProjectName
         GamingDomainName:
           !Ref GamingDomainName
         GamingHostedZoneId:
@@ -377,7 +387,7 @@ Outputs:
     Description: "Public Build Instance ID"
     Condition: "CreateResourcesStage2"
     Value:
-      !GetAtt InstancePubDef.Outputs.PubEC2InstanceId
+      !GetAtt InstanceBuildDef.Outputs.PubEC2InstanceId
 
   # ------------------------------------------
   # --- Public Subnet ID AZ-A

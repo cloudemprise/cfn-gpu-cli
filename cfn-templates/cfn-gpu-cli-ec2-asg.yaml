@@ -22,13 +22,12 @@ Parameters:
   # --- The Project Name
   ProjectName:
     Description: "The Name given to this Project."
-    ConstraintDescription: "Name must satisfy S3 constraints."
+    ConstraintDescription: "Must satisfy S3 constraints."
     Type: String
     Default: "cfn-gpu-cli"
     MinLength: 3
-    MaxLength: 63
-    AllowedPattern:
-      ^[a-zA-Z0-9.\-_]{1,255}$
+    MaxLength: 11
+    AllowedPattern: ^[a-zA-Z0-9.\-_]{1,255}$
 
   # ------------------------------------------
   # --- Public Subnet IDs
@@ -49,17 +48,18 @@ Parameters:
     Description: "Launch Template Id"
     Type: String
   # ------------------------------------------
-  GamingDcvTargetGroupArn:
+  GamingTargetGroupDcvArn:
     Description: "Network Loadbalancer DCV Target Group ARN"
     Type: String
   # ------------------------------------------
-  GamingRdpTargetGroupArn:
+  GamingTargetGroupRdpArn:
     Description: "Network Loadbalancer RDP Target Group ARN"
     Type: String
   # ------------------------------------------
   GamingSNSTopicARN:
     Description: "Gaming SNS Activity Topic ARN"
     Type: String
+    #Default: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${ProjectName}-bulletin-asg-${AWS::Region}"
 
 
 # ==========================================
@@ -82,14 +82,14 @@ Resources:
     # .............................
     Properties:
       # .............................
-      AutoScalingGroupName: !Sub "${ProjectName}-autoscale-grp"
+      AutoScalingGroupName: !Sub "${ProjectName}-asg"
       LaunchTemplate:
         LaunchTemplateId: !Ref GamingLaunchTemplateId
         Version: "1"
       # .............................
       TargetGroupARNs:
-        - !Ref GamingDcvTargetGroupArn
-        - !Ref GamingRdpTargetGroupArn
+        - !Ref GamingTargetGroupDcvArn
+        - !Ref GamingTargetGroupRdpArn
       # .............................
       VPCZoneIdentifier:
         - !Ref PublicSubnetIdA
@@ -97,8 +97,8 @@ Resources:
         - !Ref PublicSubnetIdC
       # .............................
       Cooldown: "300"
-      DesiredCapacity: "1"
-      MinSize: "1"
+      DesiredCapacity: "0"
+      MinSize: "0"
       MaxSize: "1"
       # .............................
       HealthCheckType: "ELB"

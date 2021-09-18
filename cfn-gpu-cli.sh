@@ -148,10 +148,10 @@ do
   # -r : backslash not an escape character
   # -p : prompt on stderr
   # -i : use default buffer val
-  read -er -i "$AWS_DOMAIN_NAME" -p "Enter Domain Name Static Website ..............: " USER_INPUT
+  read -er -i "$AWS_DOMAIN_NAME" -p "Enter Project Domain Name .....................: " USER_INPUT
   if [[ "${USER_INPUT:=$AWS_DOMAIN_NAME}" =~ (^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,6}$) ]]
   then
-    echo "Domain Name Static Website is valid ...........: $USER_INPUT"
+    echo "Project Domain Name is valid ..................: $USER_INPUT"
     AWS_DOMAIN_NAME=$USER_INPUT
     break
   else
@@ -245,7 +245,7 @@ else
     elif [[ "${CHANGE_PASSWD^}" == "N" ]]; then
       # Keeping password unchanged but make a local copy for later use
       ADMIN_AUTH_PASS=$(aws ssm get-parameter --profile "$AWS_PROFILE" --region "$AWS_REGION" \
-        --name "/${PROJECT_NAME}-${AWS_REGION}/user-admin-auth" --query 'Parameter.Value' \
+        --name "/${PROJECT_NAME}/user-admin-auth" --query 'Parameter.Value' \
         --with-decryption --output text)
       #echo "SSM Parameter Store Current Saved Password ....: $ADMIN_AUTH_PASS"
       break
@@ -299,6 +299,8 @@ AMI_NAME="/aws/service/ami-windows-latest/Windows_Server-2019-English-Full-Base"
 AMI_LATEST=$(aws ssm get-parameters --output text --names "$AMI_NAME" --profile "$AWS_PROFILE" \
   --query 'Parameters[0].[Value]' --region "$AWS_REGION")
 echo "The lastest AMI ...............................: $AMI_LATEST"
+#-----------------------------
+SPOT_DURATION="60"
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -798,6 +800,12 @@ find -L ./firefox -type f -name "firefox-profile*.zip" ! -path "*/scratch/*" -pr
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
+
+
+
+
+
+
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # START   CLOUDFORMATION STACK CREATION STAGE1
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -822,6 +830,7 @@ STACK_ID=$(aws cloudformation create-stack --stack-name "$STACK_NAME" --paramete
                 ParameterKey=SshAccessCIDR,ParameterValue="$SSH_ACCESS_CIDR"            \
                 ParameterKey=CurrentAmi,ParameterValue="$AMI_LATEST"                    \
                 ParameterKey=GamingEmailAddrSNS,ParameterValue="$USER_EMAIL"            \
+                ParameterKey=SpotBlockDuration,ParameterValue="$SPOT_DURATION"          \
                 --tags Key=Name,Value="$PROJECT_NAME"                                   \
                 --stack-policy-url "$STACK_POLICY_URL" --template-url "$TEMPLATE_URL"   \
                 --profile "$AWS_PROFILE" --region "$AWS_REGION"                         \
@@ -870,6 +879,9 @@ $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
+
+
+
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # START   SSM AUTOMATION 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -895,7 +907,7 @@ else
   # ___
   # Instance Profile
   SSM_EC2_PROFILE="${PROJECT_NAME}-ec2-ssm-${AWS_REGION}"
-  # ___
+  # ___describe-images
   # Service Linked Role
   SSM_SERVICE_ROLE="arn:aws:iam::$AWS_ACC_ID:role/ce/$PROJECT_NAME-ssm-automation-$AWS_REGION"
   # ___
@@ -961,6 +973,10 @@ fi
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 # END   SSM AUTOMATION
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+
 
 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1114,6 +1130,9 @@ fi
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
+
+
+
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # START   CLOUDFORMATION STACK CREATION STAGE4
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1126,7 +1145,7 @@ echo "Cloudformation Stack Update Initiated .........: $BUILD_COUNTER"
 # ___
 aws cloudformation update-stack --stack-name "$STACK_ID" --parameters \
       ParameterKey=BuildStep,ParameterValue="$BUILD_COUNTER"          \
-      ParameterKey=CurrentAmi,ParameterValue="$AMI_BUILD"         \
+      ParameterKey=CurrentAmi,ParameterValue="$AMI_BUILD"             \
       ParameterKey=ProjectName,UsePreviousValue=true                  \
       ParameterKey=GamingDomainName,UsePreviousValue=true             \
       ParameterKey=GamingHostedZoneId,UsePreviousValue=true           \
@@ -1177,8 +1196,11 @@ echo "$BUILD_COUNTER Finished Execution Time ................: \
 $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 60 ))s"
 
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-# END   CLOUDFORMATION STACK CREATION STAGE2
+# END   CLOUDFORMATION STACK CREATION STAGE4
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
 
 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1283,6 +1305,7 @@ chmod 600 "./rdp/$CONFIG_RDP_EC2"
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
+
 #-----------------------------
 # Calculate Script Total Execution Time
 TIME_END_PT=$(date +%s)
@@ -1291,12 +1314,3 @@ echo "Total Finished Execution Time .................: \
 $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 60 ))s"
 #.............................
 
-
-
-#!! COMMENT Construct Begins Here:
-: <<'END'
-#!! COMMENT BEGIN
-
-#!! COMMENT END
-END
-#!! COMMENT Construct Ends Here:

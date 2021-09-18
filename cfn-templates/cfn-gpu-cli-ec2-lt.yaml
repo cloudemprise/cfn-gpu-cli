@@ -15,30 +15,58 @@ Metadata: {}
 # Parameters {}
 Parameters:
 
+# ==========================================
+# Parameters {}
+Parameters:
+
   # ------------------------------------------
   # --- The Project Name
   ProjectName:
     Description: "The Name given to this Project."
-    ConstraintDescription: "Name must satisfy S3 constraints."
+    ConstraintDescription: "Must satisfy S3 constraints."
     Type: String
     Default: "cfn-gpu-cli"
     MinLength: 3
-    MaxLength: 63
-    AllowedPattern:
-      ^[a-zA-Z0-9.\-_]{1,255}$
+    MaxLength: 11
+    AllowedPattern: ^[a-zA-Z0-9.\-_]{1,255}$
 
   # ------------------------------------------
-  # --- Pre-Configured Public EC2 instance
-  PublicLtAmiId:
-    Description: "Launch Template Public AMI ID"
+  # --- Launch Template AMI
+  LaunchTemplateAmiId:
+    Description: "Launch Template AMI ID"
     Type: "AWS::EC2::Image::Id"
 
   # ------------------------------------------
   # --- Public Security Group Resource ID
   PublicSgResourceId:
-    Description: "Public Security Group ID AZ-A"
+    Description: "Public Security Group"
     Type: "AWS::EC2::SecurityGroup::Id"
 
+  # ------------------------------------------
+  # --- Public Subnet ID
+  PublicSubnetIdA:
+    Description: "Public Subnet ID AZ-A"
+    Type: "AWS::EC2::Subnet::Id"
+
+  # ------------------------------------------
+  # --- Public Subnet ID
+  PublicSubnetIdB:
+    Description: "Public Subnet ID AZ-B"
+    Type: "AWS::EC2::Subnet::Id"
+
+  # ------------------------------------------
+  # --- Public Subnet ID
+  PublicSubnetIdC:
+    Description: "Public Subnet ID AZ-C"
+    Type: "AWS::EC2::Subnet::Id"
+
+  # ------------------------------------------
+  # --- Duration of EC2 Spot Request
+  SpotBlockDuration:
+    Description: "Duration of EC2 Spot Request"
+    ConstraintDescription: "Value must be a multiple of 60."
+    Type: String
+    Default: "60"
 
 # ==========================================
 Conditions: {}
@@ -60,7 +88,7 @@ Resources:
     # .............................
     Properties:
       # .............................
-      LaunchTemplateName: !Sub "${ProjectName}-launch-template"
+      LaunchTemplateName: !Sub "${ProjectName}-lt-asg"
       # .............................
       TagSpecifications:
         - 
@@ -68,11 +96,11 @@ Resources:
           Tags:
             - 
               Key: "Name"
-              Value: !Sub "${ProjectName}-launch-template"
+              Value: !Sub "${ProjectName}-lt-asg"
       # .............................
       LaunchTemplateData:
         # .............................
-        ImageId: !Ref PublicLtAmiId
+        ImageId: !Ref LaunchTemplateAmiId
         InstanceType: "t2.micro"
         #InstanceType: "g4dn.xlarge"
         # .............................
@@ -85,12 +113,14 @@ Resources:
         # .............................
         InstanceMarketOptions: 
           MarketType: "spot"
-          SpotOptions: 
-            #MaxPrice: "0.01000"
+          SpotOptions:
+            BlockDurationMinutes: !Ref SpotBlockDuration
             # one-time | persistent
-            SpotInstanceType: "one-time"
+            SpotInstanceType: "persistent"
             #  hibernate | stop | terminate
-            InstanceInterruptionBehavior: "terminate"
+            InstanceInterruptionBehavior: "stop"
+            # g4d.xlarge ~ 0.4
+            #MaxPrice: "0.01000"
         # .............................
         Monitoring:
           Enabled: false
@@ -101,11 +131,29 @@ Resources:
           #HttpTokens: "optional"
           HttpPutResponseHopLimit: 1
         # .............................
-        #UserData:
-        #  Fn::Base64: !Sub |
-        #    <powershell>
-        #      # Enter Commands Here.             
-        #    </powershell>
+        UserData:
+          Fn::Base64: !Sub |
+            <powershell>
+              # ___________________________
+              # PROJECT VARIABLES
+              # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              $NameOfProject = "cfn-gpu-cli"
+              $NameOfProjBucket = "proj-cfn-gpu-cli-eu-central-1"
+              # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+              # ___________________________
+              # Install Steam
+              # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              # create sub directory 
+              $SteamFilePath = "C:\$NameOfProjBucket\steam"
+              New-Item $SteamFilePath -ItemType "directory" -Force
+              # download installer
+              $Url = 'https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe'
+              $SteamFileNameFull = Join-Path $SteamFilePath $(Split-Path -Path $Url -Leaf)
+              Invoke-WebRequest -Uri $Url -OutFile $SteamFileNameFull
+              # install passive
+              Start-Process -NoNewWindow -FilePath $SteamFileNameFull -ArgumentList '/S' -Wait
+            </powershell>
         # .............................
 
 # ==========================================
