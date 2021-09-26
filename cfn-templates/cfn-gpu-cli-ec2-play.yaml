@@ -1,0 +1,173 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Add Description Here.
+
+# ------------------------------------------
+
+
+# ==========================================
+Metadata: {}
+# Metadata:
+
+
+# ==========================================
+# Parameters {}
+Parameters:
+
+  # ------------------------------------------
+  # --- The Project Name
+  ProjectName:
+    Description: "The Name given to this Project."
+    ConstraintDescription: "Must satisfy S3 constraints."
+    Type: String
+    Default: "cfn-gpu-cli"
+    MinLength: 3
+    MaxLength: 11
+    AllowedPattern: ^[a-zA-Z0-9.\-_]{1,255}$
+
+  # ------------------------------------------
+  # --- AMI for EC2 instance
+  PlayAmiId:
+    Description: "Gaming AMI ID"
+    Type: "AWS::EC2::Image::Id"
+
+  # ------------------------------------------
+  # --- Public Security Group Resource ID
+  PublicSgResourceId:
+    Description: "Public Security Group"
+    Type: "AWS::EC2::SecurityGroup::Id"
+
+  # ------------------------------------------
+  # --- Public Subnet ID
+  PublicSubnetIdA:
+    Description: "Public Subnet ID AZ-A"
+    Type: "AWS::EC2::Subnet::Id"
+
+  # ------------------------------------------
+  # --- Public Subnet ID
+  PublicSubnetIdB:
+    Description: "Public Subnet ID AZ-B"
+    Type: "AWS::EC2::Subnet::Id"
+
+  # ------------------------------------------
+  # --- Public Subnet ID
+  PublicSubnetIdC:
+    Description: "Public Subnet ID AZ-C"
+    Type: "AWS::EC2::Subnet::Id"
+
+  # ------------------------------------------
+  # --- Gaming Lauch Template
+  GamingLaunchTemplateId:
+    Description: "Launch Template Id"
+    Type: String
+
+# ==========================================
+Conditions: {}
+# Conditions:
+
+
+# ==========================================
+Resources:
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #         GAMEING EC2 DEFINITION
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+  # ------------------------------------------
+  # --- Gameing EC2 Instance
+  GamingEC2Instance:
+    Type: "AWS::EC2::Instance"
+    # .............................
+    Properties:
+      # .............................
+      Tags:
+        -
+          Key: "Name"
+          Value: !Sub "${ProjectName}-ec2-play"
+      # .............................
+      #AvailabilityZone: !Select [ "0", !GetAZs ]
+      SubnetId: !Ref PublicSubnetIdA
+      ImageId: !Ref PlayAmiId
+      # .............................
+      LaunchTemplate:
+        LaunchTemplateId: !Ref GamingLaunchTemplateId
+        Version: "1"
+      # .............................
+      # Encrypt Ebs Here:
+      #BlockDeviceMappings:
+      #  -
+      #    DeviceName: "/dev/sda1"
+      #    Ebs:
+      #      DeleteOnTermination: true
+      #      Encrypted: true
+      #      KmsKeyId: !Sub "alias/ce/kms/${AWS::Region}"
+      #      #KmsKeyId: !Sub "alias/aws/ebs"
+      #      #VolumeSize: 128
+      #      VolumeSize: 256
+      #      #VolumeSize: 512
+      #      VolumeType: "gp2"
+      # .............................
+      #InstanceType: "g4dn.xlarge"
+      #InstanceType: "t2.micro"
+      # true | false
+      #EbsOptimized: false
+      # true | false
+      #DisableApiTermination: false
+      #InstanceInitiatedShutdownBehavior: "stop"
+      #Monitoring: false
+      # .............................
+      #IamInstanceProfile: !Sub "${ProjectName}-ec2-pub-${AWS::Region}"
+      #KeyName: !Sub "aws.dev.ec2.win.ssh.key.${AWS::Region}"
+      # .............................
+      #NetworkInterfaces:
+      #  -
+      #    Description: "Primary Public NIC"
+      #    DeleteOnTermination: true
+      #    DeviceIndex: "0"
+      #    PrivateIpAddress: "10.0.128.10"
+      #    SubnetId: !Ref PublicSubnetIdA
+      #    GroupSet:
+      #      - !Ref PublicSgResourceId
+      # .............................
+
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #         EC2 EIP DEFINITION
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+  # ------------------------------------------
+  # --- Gamer EC2 EIP
+  GamingEC2EIP:
+    Type: "AWS::EC2::EIP"
+    # .............................
+    Properties:
+      # .............................
+      Tags:
+        -
+          Key: "Name"
+          Value: !Sub "${ProjectName}-eip-play"
+      # .............................
+      Domain: "vpc"
+      InstanceId: !Ref GamingEC2Instance
+      # .............................
+
+
+
+# ==========================================
+# Outputs: {}
+Outputs:
+
+  # ------------------------------------------
+  # --- Gaming Instance ID
+  PubEC2InstanceId:
+    Description: "Gaming Play EC2 Instance ID"
+    Value: !Ref GamingEC2Instance
+
+  # ------------------------------------------
+  # --- Gaming Instance EIP
+  PubEC2InstanceEIP:
+    Description: "Gaming Play EC2 Instance EIP"
+    Value: !Ref GamingEC2EIP

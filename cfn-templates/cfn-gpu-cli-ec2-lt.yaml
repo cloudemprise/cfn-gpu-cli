@@ -88,7 +88,7 @@ Resources:
     # .............................
     Properties:
       # .............................
-      LaunchTemplateName: !Sub "${ProjectName}-lt-asg"
+      LaunchTemplateName: !Sub "${ProjectName}-lt"
       # .............................
       TagSpecifications:
         - 
@@ -96,7 +96,7 @@ Resources:
           Tags:
             - 
               Key: "Name"
-              Value: !Sub "${ProjectName}-lt-asg"
+              Value: !Sub "${ProjectName}-lt"
       # .............................
       LaunchTemplateData:
         # .............................
@@ -116,9 +116,9 @@ Resources:
           SpotOptions:
             BlockDurationMinutes: !Ref SpotBlockDuration
             # one-time | persistent
-            SpotInstanceType: "persistent"
+            SpotInstanceType: "one-time"
             #  hibernate | stop | terminate
-            InstanceInterruptionBehavior: "stop"
+            InstanceInterruptionBehavior: "terminate"
             # g4d.xlarge ~ 0.4
             #MaxPrice: "0.01000"
         # .............................
@@ -130,30 +130,6 @@ Resources:
           HttpTokens: "required"
           #HttpTokens: "optional"
           HttpPutResponseHopLimit: 1
-        # .............................
-        UserData:
-          Fn::Base64: !Sub |
-            <powershell>
-              # ___________________________
-              # PROJECT VARIABLES
-              # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-              $NameOfProject = "cfn-gpu-cli"
-              $NameOfProjBucket = "proj-cfn-gpu-cli-eu-central-1"
-              # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-              # ___________________________
-              # Install Steam
-              # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-              # create sub directory 
-              $SteamFilePath = "C:\$NameOfProjBucket\steam"
-              New-Item $SteamFilePath -ItemType "directory" -Force
-              # download installer
-              $Url = 'https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe'
-              $SteamFileNameFull = Join-Path $SteamFilePath $(Split-Path -Path $Url -Leaf)
-              Invoke-WebRequest -Uri $Url -OutFile $SteamFileNameFull
-              # install passive
-              Start-Process -NoNewWindow -FilePath $SteamFileNameFull -ArgumentList '/S' -Wait
-            </powershell>
         # .............................
 
 # ==========================================

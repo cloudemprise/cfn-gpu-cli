@@ -28,9 +28,15 @@ Parameters:
 
   # ------------------------------------------
   # --- AMI for EC2 instance
-  PublicAmiId:
+  BuildAmiId:
     Description: "Public AMI ID"
     Type: "AWS::EC2::Image::Id"
+
+  # ------------------------------------------
+  # --- Public Security Group Resource ID
+  PublicSgResourceId:
+    Description: "Public Security Group"
+    Type: "AWS::EC2::SecurityGroup::Id"
 
   # ------------------------------------------
   # --- Public Subnet ID
@@ -49,13 +55,6 @@ Parameters:
   PublicSubnetIdC:
     Description: "Public Subnet ID AZ-C"
     Type: "AWS::EC2::Subnet::Id"
-
-  # ------------------------------------------
-  # --- Public Security Group Resource ID
-  PublicSgResourceId:
-    Description: "Public Security Group"
-    Type: "AWS::EC2::SecurityGroup::Id"
-
 
 # ==========================================
 Conditions: {}
@@ -84,33 +83,31 @@ Resources:
       # .............................
       AvailabilityZone: !Select [ "0", !GetAZs ]
       # .............................
+      # Encrypt Ebs Here:
       BlockDeviceMappings:
         -
           DeviceName: "/dev/sda1"
           Ebs:
+            DeleteOnTermination: true
             Encrypted: true
             KmsKeyId: !Sub "alias/ce/kms/${AWS::Region}"
             #KmsKeyId: !Sub "alias/aws/ebs"
+            #VolumeSize: 128
+            VolumeSize: 256
             #VolumeSize: 512
-            VolumeSize: 50
             VolumeType: "gp2"
-            DeleteOnTermination: true
       # .............................
-      DisableApiTermination: false
+      #InstanceType: "g4dn.xlarge"
+      InstanceType: "t2.micro"
+      # true | false
       EbsOptimized: false
-      EnclaveOptions: 
-        Enabled: false
-      HibernationOptions: 
-        Configured: false
+      # true | false
+      DisableApiTermination: false
+      InstanceInitiatedShutdownBehavior: "stop"
       Monitoring: false
-      SourceDestCheck: true
-      Tenancy: "default"
       # .............................
       IamInstanceProfile: !Sub "${ProjectName}-ec2-pub-${AWS::Region}"
-      ImageId: !Ref PublicAmiId
-      #InstanceType: "t2.nano"
-      InstanceType: "t2.micro"
-      #InstanceType: "g4dn.xlarge"
+      ImageId: !Ref BuildAmiId
       KeyName: !Sub "aws.dev.ec2.win.ssh.key.${AWS::Region}"
       # .............................
       NetworkInterfaces:
@@ -137,8 +134,10 @@ Resources:
                 $NameOfProjBucket = "proj-${ProjectName}-${AWS::Region}"
                 $BucketLocalPath = "C:\$NameOfProjBucket"
                 $PrefixFirefox = "firefox"
-                Start-Process firefox -ArgumentList '/CreateProfile v78-Restricted' -Wait
+                Start-Process -FilePath "C:\Program Files\Mozilla Firefox\firefox.exe" -Wait -ArgumentList "/CreateProfile v78-Restricted" -Verb RunAs
                 $ProfilePathFirefox = "C:\Users\Administrator\AppData\Roaming\Mozilla\Firefox\Profiles"
+                # Ensure CreateProfile has completed before moving on
+                while (-not (Test-Path -Path $ProfilePathFirefox)) {Start-Sleep -Seconds 5;New-Item -Path $BucketLocalPath -Name "testfile.txt" -ItemType "file" -Value "This is a timestamp."}
                 $ProfileNamePathFirefox = Get-Item "$ProfilePathFirefox\*.v78-Restricted"
                 $ArchivePathFirefox = Join-Path $BucketLocalPath $PrefixFirefox
                 $ArchiveNamePathFirefox = Get-Item "$ArchivePathFirefox\firefox-profile*.zip"

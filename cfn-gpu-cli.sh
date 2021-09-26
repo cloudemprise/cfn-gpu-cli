@@ -141,7 +141,7 @@ done
 
 #-----------------------------
 # Request Domain Name
-AWS_DOMAIN_NAME="cloudemprise.net"
+AWS_DOMAIN_NAME="cloudemprise.com"
 while true
 do
   # -e : stdin from terminal

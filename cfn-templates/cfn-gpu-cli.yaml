@@ -223,7 +223,7 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-asg-lt.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-lt.yaml"
       Parameters:
         ProjectName: !Ref ProjectName
         LaunchTemplateAmiId: !Ref CurrentAmi
@@ -234,22 +234,44 @@ Resources:
         SpotBlockDuration: !Ref SpotBlockDuration
       TimeoutInMinutes: 7
 
+  # ------------------------------------------
+  # --- Gaming EC2 Instance
+  InstancePlayDef:
+    Type: "AWS::CloudFormation::Stack"
+    Condition: CreateResourcesStage4
+    # .............................
+    Properties:
+      TemplateURL:
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-play.yaml"
+      Parameters:
+        ProjectName: !Ref ProjectName
+        PlayAmiId:  !Ref CurrentAmi
+        PublicSgResourceId: !GetAtt SgDefs.Outputs.PublicSgResourceId
+        PublicSubnetIdA: !GetAtt VPCDef.Outputs.PublicSubnetIdA
+        PublicSubnetIdB: !GetAtt VPCDef.Outputs.PublicSubnetIdB
+        PublicSubnetIdC: !GetAtt VPCDef.Outputs.PublicSubnetIdC
+        GamingLaunchTemplateId:
+          !GetAtt GamingLaunchTemplateDef.Outputs.GamingLaunchTemplateId
+      TimeoutInMinutes: 12
 
   # ------------------------------------------
-  # --- EC2 Target Group
-  GamingTargetGroupDef:
+  # --- Route53 Record Set
+  GamingR53RecordSetDef:
     Type: "AWS::CloudFormation::Stack"
     Condition: "CreateResourcesStage4"
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-asg-tg.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-r53.yaml"
       Parameters:
         ProjectName: !Ref ProjectName
-        VPCID:
-          !GetAtt VPCDef.Outputs.VPCID
+        GamingDomainName:
+          !Ref GamingDomainName
+        GamingHostedZoneId:
+          !Ref GamingHostedZoneId
+        PubEC2InstanceEIP:
+          !GetAtt InstancePlayDef.Outputs.PubEC2InstanceEIP
       TimeoutInMinutes: 5
-
 
   # ------------------------------------------
   # --- SNS Topic for Alarms
@@ -259,19 +281,33 @@ Resources:
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-asg-sns.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-sns.yaml"
       Parameters:
         ProjectName: !Ref ProjectName
         GamingEmailAddrSNS:
           !Ref GamingEmailAddrSNS
       TimeoutInMinutes: 5
 
+  # ------------------------------------------
+  # --- EC2 Target Group
+  GamingTargetGroupDef:
+    Type: "AWS::CloudFormation::Stack"
+    Condition: "CreateResourcesStage5"
+    # .............................
+    Properties:
+      TemplateURL:
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-tg.yaml"
+      Parameters:
+        ProjectName: !Ref ProjectName
+        VPCID:
+          !GetAtt VPCDef.Outputs.VPCID
+      TimeoutInMinutes: 5
 
   # ------------------------------------------
   # --- EC2 AutoScaling Group
   AutoScaleGroupDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage4"
+    Condition: "CreateResourcesStage5"
     # .............................
     Properties:
       TemplateURL:
@@ -294,17 +330,16 @@ Resources:
           !GetAtt GamingSNSTopicDef.Outputs.GamingSNSTopicARN
       TimeoutInMinutes: 5
 
-
   # ------------------------------------------
   # --- EC2 Network Load Balancer
   GamingLoadBalancerDef:
     Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage4"
+    Condition: "CreateResourcesStage5"
     #DependsOn: "AutoScaleGroupDef"
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-asg-nlb.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-nlb.yaml"
       Parameters:
         ProjectName: !Ref ProjectName
         PublicSubnetIdA:
@@ -331,10 +366,11 @@ Resources:
         !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-spot.yaml"
       Parameters:
         ProjectName: !Ref ProjectName
+        GamingTargetGroupDcvArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingTargetGroupDcvArn
+        GamingTargetGroupRdpArn:
+          !GetAtt GamingTargetGroupDef.Outputs.GamingTargetGroupRdpArn
       TimeoutInMinutes: 5
-
-
-
 
   # ------------------------------------------
   # --- CloudWatch Alarm
@@ -355,28 +391,6 @@ Resources:
       TimeoutInMinutes: 5
 
 
-  # ------------------------------------------
-  # --- Route53 Record Set
-  GamingR53RecordSetDef:
-    Type: "AWS::CloudFormation::Stack"
-    Condition: "CreateResourcesStage5"
-    # .............................
-    Properties:
-      TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-r53.yaml"
-      Parameters:
-        ProjectName: !Ref ProjectName
-        GamingDomainName:
-          !Ref GamingDomainName
-        GamingHostedZoneId:
-          !Ref GamingHostedZoneId
-        GamingLoadBalancerDNS:
-          !GetAtt GamingLoadBalancerDef.Outputs.GamingLoadBalancerDNS
-        GamingLoadBalancerZoneId:
-          !GetAtt GamingLoadBalancerDef.Outputs.GamingLoadBalancerZoneId
-      TimeoutInMinutes: 5
-
-
 # ==========================================
 # Outputs: {}
 Outputs:
@@ -388,6 +402,14 @@ Outputs:
     Condition: "CreateResourcesStage2"
     Value:
       !GetAtt InstanceBuildDef.Outputs.PubEC2InstanceId
+
+  # ------------------------------------------
+  # --- Public Play Instance ID
+  InstanceIdPublicPlay:
+    Description: "Public Play Instance ID"
+    Condition: "CreateResourcesStage4"
+    Value:
+      !GetAtt InstancePlayDef.Outputs.PubEC2InstanceId
 
   # ------------------------------------------
   # --- Public Subnet ID AZ-A
