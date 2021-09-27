@@ -204,7 +204,6 @@ Resources:
     Properties:
       RouteTableId: !Ref RouteTablePublic
       SubnetId: !Ref PublicSubnetA
-
   # ------------------------------------------
   RouteTablePublicAssociationB:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
@@ -212,7 +211,6 @@ Resources:
     Properties:
       RouteTableId: !Ref RouteTablePublic
       SubnetId: !Ref PublicSubnetB
-
   # ------------------------------------------
   RouteTablePublicAssociationC:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
@@ -222,6 +220,7 @@ Resources:
       SubnetId: !Ref PublicSubnetC
 
   # ------------------------------------------
+  # Internet Gateway Route
   RouteTablePublicRoute0:
     Type: "AWS::EC2::Route"
     # .............................
@@ -309,6 +308,25 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref Igw
+
+
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #         ENDPOINT DEFINITIONS
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  # ------------------------------------------
+  # --- S3 VPC Endpoint Gateway
+  VpcEndpointS3:
+    Type: "AWS::EC2::VPCEndpoint"
+    # .............................
+    Properties:
+      VpcEndpointType: "Gateway"
+      VpcId: !Ref VPC
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      PolicyDocument: "{\"Version\":\"2008-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":\"*\",\"Resource\":\"*\"}]}"
+      RouteTableIds:
+        - !Ref RouteTablePublic
+      PrivateDnsEnabled: false
 
 
 # ==========================================
