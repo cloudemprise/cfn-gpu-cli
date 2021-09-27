@@ -28,7 +28,7 @@ Parameters:
 
   # ------------------------------------------
   # --- AMI for EC2 instance
-  PlayAmiId:
+  GamerAmiId:
     Description: "Gaming AMI ID"
     Type: "AWS::EC2::Image::Id"
 
@@ -76,7 +76,7 @@ Resources:
 
 
   # ------------------------------------------
-  # --- Gameing EC2 Instance
+  # --- Gamering EC2 Instance
   GamingEC2Instance:
     Type: "AWS::EC2::Instance"
     # .............................
@@ -85,11 +85,11 @@ Resources:
       Tags:
         -
           Key: "Name"
-          Value: !Sub "${ProjectName}-ec2-play"
+          Value: !Sub "${ProjectName}-ec2-gamer"
       # .............................
       #AvailabilityZone: !Select [ "0", !GetAZs ]
       SubnetId: !Ref PublicSubnetIdA
-      ImageId: !Ref PlayAmiId
+      ImageId: !Ref GamerAmiId
       # .............................
       LaunchTemplate:
         LaunchTemplateId: !Ref GamingLaunchTemplateId
@@ -139,7 +139,7 @@ Resources:
 
 
   # ------------------------------------------
-  # --- Gamer EC2 EIP
+  # --- Gamerr EC2 EIP
   GamingEC2EIP:
     Type: "AWS::EC2::EIP"
     # .............................
@@ -148,7 +148,7 @@ Resources:
       Tags:
         -
           Key: "Name"
-          Value: !Sub "${ProjectName}-eip-play"
+          Value: !Sub "${ProjectName}-eip-gamer"
       # .............................
       Domain: "vpc"
       InstanceId: !Ref GamingEC2Instance
@@ -163,11 +163,11 @@ Outputs:
   # ------------------------------------------
   # --- Gaming Instance ID
   PubEC2InstanceId:
-    Description: "Gaming Play EC2 Instance ID"
+    Description: "Gaming Gamer EC2 Instance ID"
     Value: !Ref GamingEC2Instance
 
   # ------------------------------------------
   # --- Gaming Instance EIP
   PubEC2InstanceEIP:
-    Description: "Gaming Play EC2 Instance EIP"
+    Description: "Gaming Gamer EC2 Instance EIP"
     Value: !Ref GamingEC2EIP

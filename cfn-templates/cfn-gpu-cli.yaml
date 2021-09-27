@@ -236,16 +236,16 @@ Resources:
 
   # ------------------------------------------
   # --- Gaming EC2 Instance
-  InstancePlayDef:
+  InstanceGamerDef:
     Type: "AWS::CloudFormation::Stack"
     Condition: CreateResourcesStage4
     # .............................
     Properties:
       TemplateURL:
-        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-play.yaml"
+        !Sub "https://proj-${ProjectName}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/cfn-templates/cfn-gpu-cli-ec2-gamer.yaml"
       Parameters:
         ProjectName: !Ref ProjectName
-        PlayAmiId:  !Ref CurrentAmi
+        GamerAmiId:  !Ref CurrentAmi
         PublicSgResourceId: !GetAtt SgDefs.Outputs.PublicSgResourceId
         PublicSubnetIdA: !GetAtt VPCDef.Outputs.PublicSubnetIdA
         PublicSubnetIdB: !GetAtt VPCDef.Outputs.PublicSubnetIdB
@@ -270,7 +270,7 @@ Resources:
         GamingHostedZoneId:
           !Ref GamingHostedZoneId
         PubEC2InstanceEIP:
-          !GetAtt InstancePlayDef.Outputs.PubEC2InstanceEIP
+          !GetAtt InstanceGamerDef.Outputs.PubEC2InstanceEIP
       TimeoutInMinutes: 5
 
   # ------------------------------------------
@@ -404,12 +404,12 @@ Outputs:
       !GetAtt InstanceBuildDef.Outputs.PubEC2InstanceId
 
   # ------------------------------------------
-  # --- Public Play Instance ID
-  InstanceIdPublicPlay:
-    Description: "Public Play Instance ID"
+  # --- Public Gamer Instance ID
+  InstanceIdPublicGamer:
+    Description: "Public Gamer Instance ID"
     Condition: "CreateResourcesStage4"
     Value:
-      !GetAtt InstancePlayDef.Outputs.PubEC2InstanceId
+      !GetAtt InstanceGamerDef.Outputs.PubEC2InstanceId
 
   # ------------------------------------------
   # --- Public Subnet ID AZ-A

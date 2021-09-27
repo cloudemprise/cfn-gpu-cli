@@ -1209,7 +1209,7 @@ $(( TIME_DIFF_PT / 3600 ))h $(( (TIME_DIFF_PT / 60) % 60 ))m $(( TIME_DIFF_PT % 
 
 #----------------------------------------------
 # Get EC2 Instance ID
-FILTER1="Name=tag:Name,Values=${PROJECT_NAME}-autoscale-grp"
+FILTER1="Name=tag:Name,Values=${PROJECT_NAME}-ec2-gamer"
 FILTER2="Name=instance-state-name,Values=running"
 INSTANCE_LT_ID=$(aws ec2 describe-instances --query 'Reservations[].Instances[].InstanceId' \
   --filters "$FILTER1" "$FILTER2" --output text --profile "$AWS_PROFILE" --region "$AWS_REGION")
@@ -1226,7 +1226,7 @@ echo "Gaming Server EC2 Instance DNS ................: $INSTANCE_LT_DNS"
 
 #----------------------------------------------
 # Validity Check. Wait for instance status ok before moving on.
-echo "Waiting on Autoscaling Instance Status ok .....: $INSTANCE_LT_ID"
+echo "Waiting on Instance Status ok .................: $INSTANCE_LT_ID"
 CHECK_INSTANCE_STATUS=$(aws ec2 describe-instance-status --instance-ids "$INSTANCE_LT_ID"   \
   --query 'InstanceStatuses[0].InstanceStatus.Status' --output text --profile "$AWS_PROFILE" \
   --region "$AWS_REGION")
@@ -1240,7 +1240,7 @@ do
       --region "$AWS_REGION")
 done
 printf '\n'
-echo "Autoscaling Launch Template Instance State ....: OK"
+echo "Spot Block Launch Template Instance State .....: OK"
 #-----------------------------
 
 

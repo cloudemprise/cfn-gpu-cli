@@ -89,7 +89,7 @@ Start-Process msiexec.exe -Wait -ArgumentList '/i "https://awscli.amazonaws.com/
 
 # ___________________________
 # firefox-esr
-Start-Process msiexec.exe -Wait -ArgumentList '/i "https://download-installer.cdn.mozilla.net/pub/firefox/releases/78.9.0esr/win64/en-GB/Firefox Setup 78.9.0esr.msi" /passive'
+Start-Process msiexec.exe -Wait -ArgumentList '/i "https://download-installer.cdn.mozilla.net/pub/firefox/releases/78.14.0esr/win64/en-GB/Firefox Setup 78.14.0esr.msi" /passive'
 # Removed unwanted system addons
 Remove-Item -Path "C:\Program Files\Mozilla Firefox\browser\features\*.xpi" -Force
 # ___________________________
@@ -159,5 +159,5 @@ Invoke-WebRequest -Uri "https://nvidia-gaming.s3.amazonaws.com/GridSwCert-Archiv
 # Install nice-dcv driver
 New-Item -ItemType "directory" -Path "C:\$NameOfProjBucket\dcv"
 Set-Location -Path "C:\$NameOfProjBucket\dcv"
-Start-Process msiexec.exe -Wait -ArgumentList '/i "https://d1uj6qtbmh3dt5.cloudfront.net/2021.0/Servers/nice-dcv-server-x64-Release-2021.0-10242.msi" AUTOMATIC_SESSION_OWNER=Administrator ADDLOCAL=ALL /passive /l*v dcv_install_msi.log'
+Start-Process msiexec.exe -Wait -ArgumentList '/i "https://d1uj6qtbmh3dt5.cloudfront.net/2021.2/Servers/nice-dcv-server-x64-Release-2021.2-11135.msi" AUTOMATIC_SESSION_OWNER=Administrator ADDLOCAL=ALL /passive /l*v dcv_install_msi.log'
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
