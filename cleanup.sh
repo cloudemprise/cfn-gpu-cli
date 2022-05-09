@@ -180,13 +180,6 @@ fi
 #---
 
 
-#!! COMMENT Construct Begins Here:
-: <<'END'
-#!! COMMENT BEGIN
-
-
-
-
 #----------------------------------------------
 # Delete Project Build AMI  
 AMI_NAME="$PROJECT_NAME-pub-build"
@@ -215,10 +208,6 @@ fi
 
 #---
 
-
-
-
-
 #----------------------------------------------
 # Delete SSM Update AMI  
 AMI_NAME="$PROJECT_NAME-ssm-update"
@@ -244,13 +233,6 @@ else
   #exit 1
 fi
 #.............................
-
-
-#!! COMMENT END
-END
-#!! COMMENT Construct Ends Here:
-
-
 
 #---
 

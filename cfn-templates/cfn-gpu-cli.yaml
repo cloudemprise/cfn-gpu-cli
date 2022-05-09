@@ -212,7 +212,7 @@ Resources:
           !GetAtt VPCDef.Outputs.PrivateSubnetIdA
         PrivateSgResourceId:
           !GetAtt SgDefs.Outputs.PrivateSgResourceId
-      TimeoutInMinutes: 10
+      TimeoutInMinutes: 12
 
 
   # ------------------------------------------

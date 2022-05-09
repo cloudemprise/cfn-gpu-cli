@@ -456,6 +456,26 @@ find -L ./ssm/template* -type f ! -path "*/scratch/*" -print0 |
   done
 #.............................
 
+#----------------------------------------------
+# Create Firefox Harden Profile Powershell script from local template exclude scratch folder
+find -L ./firefox/template* -type f ! -path "*/scratch/*" -print0 |
+# -L : Follow symbolic links
+  while IFS= read -r -d '' TEMPLATE
+  do
+    if [[ ! -s "$TEMPLATE" ]]; then
+      echo "Invalid Template Firefox Profile Artifact .....: $TEMPLATE"
+      exit 1
+    else
+      # Copy/Rename template via parameter expansion
+      cp "$TEMPLATE" "${TEMPLATE//template/$PROJECT_NAME}"
+      # Replace appropriate variables
+      sed -i "s/ProjectName/$PROJECT_NAME/" "$_"
+      sed -i "s/ProjectBucket/$PROJECT_BUCKET/" "$_"
+      echo "Creating Firefox Profile Artifact .............: $_"
+    fi
+  done
+#.............................
+
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 # END   Artifact Creation
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -776,19 +796,40 @@ find -L ./ssm -type f \( -name "${PROJECT_NAME}*.ps1" -o -name "${PROJECT_NAME}*
 
 #----------------------------------------------
 # Upload Firefox Hardened Profile to S3
-find -L ./firefox -type f -name "firefox-profile*.zip" ! -path "*/scratch/*" -print0 |
+#find -L ./firefox -type f -name "firefox-profile*.zip" ! -path "*/scratch/*" -print0 |
+#  while IFS= read -r -d '' FILE
+#  do
+#    echo "Attempting to Upload Firefox Profile Archive ..: $FILE"
+#    # ...
+#    if [[ ! -s "$FILE" ]]; then
+#      echo "Error! Invalid Firefox Profile Archive ........: $FILE"
+#      exit 1
+#      # ...
+#    elif (aws s3 cp "$FILE" "s3://$PROJECT_BUCKET${FILE#.}" --profile "$AWS_PROFILE" \
+#          --region "$AWS_REGION" > /dev/null)
+#    then
+#      echo "Uploading Firefox Profile Archive to S3 .......: s3://$PROJECT_BUCKET${FILE#.}"
+#      # ...
+#    else continue
+#    fi
+#  done
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#----------------------------------------------
+# Upload Firefox Hardened Profile Aritifacts to S3
+find -L ./firefox -type f -name "${PROJECT_NAME}-firefox-profile*" ! -path "*/scratch/*" -print0 |
   while IFS= read -r -d '' FILE
   do
-    echo "Attempting to Upload Firefox Profile Archive ..: $FILE"
+    echo "Attempting to Upload Firefox Profile Artifact .: $FILE"
     # ...
     if [[ ! -s "$FILE" ]]; then
-      echo "Error! Invalid Firefox Profile Archive ........: $FILE"
+      echo "Error! Invalid Firefox Profile Artifact .......: $FILE"
       exit 1
       # ...
     elif (aws s3 cp "$FILE" "s3://$PROJECT_BUCKET${FILE#.}" --profile "$AWS_PROFILE" \
           --region "$AWS_REGION" > /dev/null)
     then
-      echo "Uploading Firefox Profile Archive to S3 .......: s3://$PROJECT_BUCKET${FILE#.}"
+      echo "Uploading Firefox Profile Artifact to S3 ......: s3://$PROJECT_BUCKET${FILE#.}"
       # ...
     else continue
     fi
@@ -798,12 +839,6 @@ find -L ./firefox -type f -name "firefox-profile*.zip" ! -path "*/scratch/*" -pr
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 # END   UPLOAD ARTIFACTS 
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-
-
-
-
-
 
 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -930,6 +965,14 @@ else
     PostUpdateScript=$SSM_POST_UPDATE,InstanceType=$SSM_AUTO_EC2,SubnetId=$SUBNET_PUB_ID_A" \
     --output text)
   # ___
+  # Execute the Automation Document
+  #COMMAND_ID=$(aws ssm start-automation-execution --document-name="$SSM_AUTO_DOC"     \
+  #  --query 'AutomationExecutionId' --profile "$AWS_PROFILE" --region "$AWS_REGION"   \
+  #  --tags Key=Project,Value="${PROJECT_NAME}" --parameters "SourceAmiId=$AMI_LATEST, \
+  #  IamInstanceProfileName=$SSM_EC2_PROFILE,InstanceType=$SSM_AUTO_EC2,               \
+  #  AutomationAssumeRole=$SSM_SERVICE_ROLE,SubnetId=$SUBNET_PUB_ID_A,                 \
+  #  TargetAmiName=${PROJECT_NAME}-ssm-update" --output text)
+  # ___
   # Provide Feedback on Automation Status
   if [[ $? -eq 0 ]]; then
     echo "SSM Automation Execution Command ID ...........: $COMMAND_ID"
@@ -971,10 +1014,6 @@ fi
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 # END   SSM AUTOMATION
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-
-
-
 
 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -1126,6 +1165,12 @@ fi
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 # END   GOLDEN AMI CREATION
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+#!! COMMENT Construct Begins Here:
+: <<'END'
+#!! COMMENT BEGIN
 
 
 
@@ -1301,6 +1346,12 @@ chmod 600 "./rdp/$CONFIG_RDP_EC2"
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 # END   MISCELLANEOUS
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+
+#!! COMMENT END
+END
+#!! COMMENT Construct Ends Here:
 
 
 
